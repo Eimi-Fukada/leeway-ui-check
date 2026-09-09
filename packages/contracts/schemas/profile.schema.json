@@ -1,0 +1,211 @@
+{
+  "$ref": "#/definitions/profile",
+  "definitions": {
+    "profile": {
+      "type": "object",
+      "properties": {
+        "profile_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "evaluator_version": {
+          "type": "string",
+          "const": "leeway-0.1.0"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "provisional",
+            "validated",
+            "retired"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "annotated",
+            "pixel_diagnostic"
+          ],
+          "default": "annotated"
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "calibration_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "heldout_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "approved_by": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "calibration_sha256",
+            "heldout_sha256",
+            "approved_by"
+          ],
+          "additionalProperties": false
+        },
+        "pixel": {
+          "type": "object",
+          "properties": {
+            "threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "include_aa": {
+              "type": "boolean"
+            },
+            "d_bad": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "threshold",
+            "include_aa",
+            "d_bad"
+          ],
+          "additionalProperties": false
+        },
+        "ssim": {
+          "type": "object",
+          "properties": {
+            "window": {
+              "type": "integer",
+              "minimum": 3,
+              "maximum": 31
+            },
+            "gaussian_weights": {
+              "type": "boolean"
+            },
+            "s_bad": {
+              "type": "number",
+              "minimum": -1,
+              "maximum": 0.99
+            }
+          },
+          "required": [
+            "window",
+            "gaussian_weights",
+            "s_bad"
+          ],
+          "additionalProperties": false
+        },
+        "weights": {
+          "type": "object",
+          "properties": {
+            "pixel": {
+              "type": "number",
+              "minimum": 0
+            },
+            "structure": {
+              "type": "number",
+              "minimum": 0
+            },
+            "layout": {
+              "type": "number",
+              "minimum": 0
+            },
+            "text": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "pixel",
+            "structure",
+            "layout",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "critical_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "text_normalization": {
+          "type": "string",
+          "enum": [
+            "unicode_whitespace",
+            "exact"
+          ]
+        },
+        "masks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "y": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "width": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "height": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "stable_max_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.01,
+          "default": 0
+        },
+        "stability_interval_ms": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 2000,
+          "default": 150
+        },
+        "stall_window": {
+          "type": "integer",
+          "minimum": 2,
+          "default": 3
+        },
+        "min_improvement": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.2
+        }
+      },
+      "required": [
+        "profile_id",
+        "evaluator_version",
+        "status",
+        "pixel",
+        "ssim",
+        "weights",
+        "critical_threshold",
+        "text_normalization"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

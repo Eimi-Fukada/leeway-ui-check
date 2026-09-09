@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="300" gradientUnits="userSpaceOnUse"><stop stop-color="#101E20"/><stop offset="1" stop-color="#233A30"/></linearGradient>
+    <linearGradient id="line" x1="650" y1="100" x2="1200" y2="260" gradientUnits="userSpaceOnUse"><stop stop-color="#B4D38C"/><stop offset="1" stop-color="#77B8A8"/></linearGradient>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#B3CAAD" opacity=".11"/></pattern>
+  </defs>
+  <rect width="1200" height="300" rx="12" fill="url(#bg)"/>
+  <rect width="1200" height="300" rx="12" fill="url(#grid)"/>
+  <path d="M-50 260C140 90 160 410 420 285S620 230 720 335" stroke="#A3C878" stroke-opacity=".16" stroke-width="2"/>
+  <circle cx="1090" cy="5" r="170" stroke="#A3C878" stroke-opacity=".12"/>
+  <circle cx="1090" cy="5" r="205" stroke="#A3C878" stroke-opacity=".07"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <rect x="54" y="43" width="160" height="25" rx="12.5" fill="#AECB92" fill-opacity=".12" stroke="#AECB92" stroke-opacity=".25"/>
+    <circle cx="69" cy="55.5" r="3" fill="#BAD994"/>
+    <text x="81" y="59" font-size="10" font-weight="700" letter-spacing="1.3" fill="#C2D5B4">UI FIDELITY HARNESS</text>
+    <text x="52" y="133" font-size="55" font-weight="700" letter-spacing="-2" fill="#F4F6ED">Leeway UI Check</text>
+    <text x="55" y="177" font-size="23" fill="#C3DBA7">Turn screenshots into actionable feedback.</text>
+    <text x="55" y="218" font-size="14" fill="#94ACA0">Capture. Compare. Fix. Verify.</text>
+    <text x="55" y="255" font-size="10" letter-spacing="2" fill="#7F9A8C">PLAYWRIGHT  /  SSIM  /  MCP</text>
+    <path d="M808 155H836M979 155H1007" stroke="url(#line)" stroke-width="2"/>
+    <path d="M829 150L836 155L829 160M1000 150L1007 155L1000 160" stroke="#B4D38C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(665 81)">
+      <rect width="143" height="151" rx="9" fill="#192A28" stroke="#6C8D72"/>
+      <path d="M0 27H143" stroke="#395347"/>
+      <circle cx="12" cy="14" r="2.5" fill="#ABC884"/><circle cx="22" cy="14" r="2.5" fill="#708B6D"/><circle cx="32" cy="14" r="2.5" fill="#476252"/>
+      <rect x="13" y="42" width="73" height="7" rx="2" fill="#D6E1C6"/>
+      <rect x="13" y="58" width="107" height="4" rx="2" fill="#536E5B"/>
+      <rect x="13" y="76" width="53" height="47" rx="4" fill="#344C3D"/><rect x="77" y="76" width="53" height="47" rx="4" fill="#344C3D"/>
+      <rect x="23" y="87" width="28" height="4" rx="2" fill="#91AC7F"/><rect x="87" y="87" width="28" height="4" rx="2" fill="#91AC7F"/>
+      <text x="71.5" y="178" text-anchor="middle" font-size="11" letter-spacing="1.4" fill="#AFC3A7">REFERENCE</text>
+    </g>
+    <g transform="translate(836 81)">
+      <rect width="143" height="151" rx="9" fill="#192A28" stroke="#6C8D72"/>
+      <path d="M0 27H143" stroke="#395347"/>
+      <circle cx="12" cy="14" r="2.5" fill="#ABC884"/><circle cx="22" cy="14" r="2.5" fill="#708B6D"/><circle cx="32" cy="14" r="2.5" fill="#476252"/>
+      <rect x="13" y="48" width="73" height="7" rx="2" fill="#D6E1C6"/>
+      <rect x="13" y="64" width="107" height="4" rx="2" fill="#536E5B"/>
+      <rect x="13" y="82" width="53" height="47" rx="4" fill="#344C3D"/><rect x="77" y="82" width="53" height="47" rx="4" fill="#344C3D"/>
+      <rect x="23" y="93" width="28" height="4" rx="2" fill="#91AC7F"/><rect x="87" y="93" width="28" height="4" rx="2" fill="#91AC7F"/>
+      <text x="71.5" y="178" text-anchor="middle" font-size="11" letter-spacing="1.4" fill="#AFC3A7">CANDIDATE</text>
+    </g>
+    <g transform="translate(1007 81)">
+      <rect width="143" height="151" rx="9" fill="#192A28" stroke="#B0CC8E"/>
+      <path d="M0 27H143" stroke="#395347"/>
+      <circle cx="12" cy="14" r="2.5" fill="#ABC884"/><circle cx="22" cy="14" r="2.5" fill="#708B6D"/><circle cx="32" cy="14" r="2.5" fill="#476252"/>
+      <rect x="10" y="39" width="79" height="21" rx="3" stroke="#DFA175" stroke-dasharray="4 3" fill="#DFA175" fill-opacity=".13"/>
+      <rect x="13" y="64" width="107" height="4" rx="2" fill="#536E5B"/>
+      <rect x="10" y="73" width="59" height="59" rx="5" stroke="#DFA175" stroke-dasharray="4 3" fill="#DFA175" fill-opacity=".1"/>
+      <rect x="74" y="73" width="59" height="59" rx="5" stroke="#DFA175" stroke-dasharray="4 3" fill="#DFA175" fill-opacity=".1"/>
+      <text x="71.5" y="178" text-anchor="middle" font-size="11" letter-spacing="1.4" fill="#D0DFAF">FEEDBACK</text>
+    </g>
+  </g>
+</svg>

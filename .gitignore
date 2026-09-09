@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.venv/
+.harness/
+.demo/
+coverage/
+*.log
+.env*
+docs/*

@@ -1,0 +1,530 @@
+{
+  "$ref": "#/definitions/report",
+  "definitions": {
+    "report": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "task_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "evaluation_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "profile_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "reference_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "profile_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_manifest_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evaluator_version": {
+          "type": "string",
+          "const": "leeway-0.1.0"
+        },
+        "build_manifest_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "needs_revision",
+            "review_required"
+          ]
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "threshold": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "calibrated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "value",
+                "threshold",
+                "calibrated"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "components": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "pixel": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "structure": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "layout": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "text": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "pixel",
+                "structure",
+                "layout",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "issue_id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "dimension",
+                  "pixel",
+                  "geometry",
+                  "text",
+                  "asset",
+                  "interaction",
+                  "runtime",
+                  "unstable_capture"
+                ]
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              "region_id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "reference_bbox_px": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              },
+              "actual_bbox_px": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              },
+              "delta_px": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "width": {
+                    "type": "number"
+                  },
+                  "height": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              },
+              "element": {
+                "type": "object",
+                "properties": {
+                  "selector": {
+                    "type": "string"
+                  },
+                  "match_method": {
+                    "type": "string",
+                    "const": "explicit"
+                  },
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                },
+                "required": [
+                  "selector",
+                  "match_method",
+                  "confidence"
+                ],
+                "additionalProperties": false
+              },
+              "observed": {
+                "type": "string"
+              },
+              "suggestion": {
+                "type": "string"
+              },
+              "suggestion_kind": {
+                "type": "string",
+                "const": "hypothesis"
+              },
+              "evidence_artifact_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+                }
+              }
+            },
+            "required": [
+              "issue_id",
+              "kind",
+              "severity",
+              "observed",
+              "suggestion",
+              "suggestion_kind",
+              "evidence_artifact_ids"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "artifacts": {
+          "type": "object",
+          "properties": {
+            "reference": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "actual": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "diff": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "strict_diff": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "dom": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "report": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            }
+          },
+          "required": [
+            "reference"
+          ],
+          "additionalProperties": false
+        },
+        "metrics": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "mismatched_pixels": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "strict_mismatched_pixels": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "evaluated_pixels": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "difference_ratio": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "ssim": {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 1
+                },
+                "mask_coverage": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": [
+                "mismatched_pixels",
+                "strict_mismatched_pixels",
+                "evaluated_pixels",
+                "difference_ratio",
+                "ssim",
+                "mask_coverage"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "platform": {
+                  "type": "string"
+                },
+                "node": {
+                  "type": "string"
+                },
+                "chromium": {
+                  "type": "string"
+                },
+                "fingerprint": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "platform",
+                "node",
+                "chromium",
+                "fingerprint"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "region_metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "region_id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "evaluated_pixels": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "difference_ratio": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "pixel_score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "region_id",
+              "evaluated_pixels",
+              "difference_ratio",
+              "pixel_score"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "next_action": {
+          "type": "string",
+          "enum": [
+            "revise_and_evaluate",
+            "review_configuration",
+            "finalize",
+            "inspect_failure",
+            "stop"
+          ]
+        },
+        "budget_remaining": {
+          "type": "object",
+          "properties": {
+            "iterations": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "wall_seconds": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "iterations",
+            "wall_seconds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "task_id",
+        "evaluation_id",
+        "candidate_id",
+        "profile_id",
+        "reference_sha256",
+        "profile_sha256",
+        "source_manifest_hash",
+        "evaluator_version",
+        "status",
+        "verdict",
+        "score",
+        "components",
+        "blockers",
+        "issues",
+        "artifacts",
+        "metrics",
+        "environment",
+        "next_action",
+        "budget_remaining"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
