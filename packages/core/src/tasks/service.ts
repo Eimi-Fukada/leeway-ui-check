@@ -19,6 +19,7 @@ import { snapshot, manifest } from '../candidates/snapshot.js';
 import { launch, runCommand } from '../candidates/process.js';
 import { capture } from '../capture/runner.js';
 import { scoreReport } from '../scoring/evaluate.js';
+import { sandboxEnvironment } from '../sandbox/policy.js';
 
 const terminal = new Set(['passed', 'cancelled', 'failed', 'budget_exhausted', 'stalled']);
 type TaskRow = {
@@ -367,6 +368,15 @@ export class TaskService {
       candidate_id: candidate.candidate_id,
     };
   }
+  async submitAndWait(taskId: string, requestId: string, signal = new AbortController().signal) {
+    const queued = await this.submitCandidate(taskId, requestId);
+    if (!queued.evaluation_id) return this.getTaskStatus(taskId);
+    while (true) {
+      const result = this.getEvaluation(queued.evaluation_id);
+      if (!['queued', 'capturing', 'comparing', 'testing'].includes(result.state)) return result;
+      await this.runNext(signal);
+    }
+  }
   async finalizeTask(taskId: string, candidateId: string) {
     const t = this.task(taskId),
       candidate = this.candidate(candidateId);
@@ -629,7 +639,12 @@ export class TaskService {
           ],
           candidate.snapshot,
           signal,
-          { PORT: String(port), HOST: '127.0.0.1', NODE_ENV: 'test' },
+          {
+            PORT: String(port),
+            HOST: '127.0.0.1',
+            NODE_ENV: 'test',
+            ...sandboxEnvironment(config.sandbox),
+          },
         );
         url = `http://127.0.0.1:${port}${config.target.url_path}`;
         const deadline = Date.now() + config.capture_timeout_ms;

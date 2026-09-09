@@ -2,6 +2,8 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { z } from 'zod';
 import { Id, TaskInput, Report } from '../../contracts/src/index.js';
 import { TaskService } from '../../core/src/tasks/service.js';
+import { detectProject } from '../../core/src/project/detect.js';
+import { suggestRegions } from '../../core/src/regions/suggestions.js';
 export function createMcpServer(service: TaskService, owner = false) {
   const server = new McpServer({ name: 'leeway-ui-check', version: '0.1.0' });
   const wrap = async (work: () => unknown | Promise<unknown>) => {
@@ -29,6 +31,14 @@ export function createMcpServer(service: TaskService, owner = false) {
       },
       ({ config }) => wrap(() => service.createTask(config)),
     );
+  server.registerTool(
+    'ui_check_submit_and_wait',
+    {
+      description: 'Freeze, evaluate and return the completed score/report.',
+      inputSchema: { run_id: Id, request_id: Id },
+    },
+    ({ run_id, request_id }) => wrap(() => service.submitAndWait(run_id, request_id)),
+  );
   if (!owner) {
     server.registerTool(
       'ui_check_start',
@@ -70,6 +80,24 @@ export function createMcpServer(service: TaskService, owner = false) {
         }),
     );
   }
+  if (owner)
+    server.registerTool(
+      'detect_project',
+      {
+        description: 'Detect framework, bundler, styling and likely entrypoints for task setup.',
+        inputSchema: { source_dir: z.string().min(1) },
+      },
+      ({ source_dir }) => wrap(() => detectProject(source_dir)),
+    );
+  if (owner)
+    server.registerTool(
+      'suggest_regions',
+      {
+        description: 'Suggest DOM/OCR/visual regions; owner confirmation is required.',
+        inputSchema: { source_dir: z.string().min(1) },
+      },
+      ({ source_dir }) => wrap(() => suggestRegions(source_dir)),
+    );
   server.registerTool(
     'register_candidate',
     {

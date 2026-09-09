@@ -185,6 +185,24 @@ export const TaskInput = z
       })
       .strict()
       .default({ required: false, probe_widths: [], max_horizontal_overflow_px: 0 }),
+    sandbox: z
+      .object({
+        enabled: z.boolean().default(false),
+        network: z.enum(['disabled', 'loopback', 'inherit']).default('loopback'),
+        max_memory_mb: z.number().int().positive().default(2048),
+        max_cpu_seconds: z.number().int().positive().default(600),
+        max_processes: z.number().int().positive().default(128),
+        read_only_source: z.boolean().default(true),
+      })
+      .strict()
+      .default({
+        enabled: false,
+        network: 'loopback',
+        max_memory_mb: 2048,
+        max_cpu_seconds: 600,
+        max_processes: 128,
+        read_only_source: true,
+      }),
   })
   .strict()
   .superRefine((t, c) => {

@@ -38,3 +38,9 @@
 - `responsive.required`：强制响应式布局时，用 `probe_widths` 做低成本适配探测；横向溢出或元素越界会阻断。
 - 新增 Agent Facade MCP：`ui_check_start`、`ui_check_submit`、`ui_check_status`、`ui_check_cancel`、`ui_check_finalize`。
 - 底层 MCP 和 TaskService 保持兼容，方便 CI、恢复和审计。
+
+## Sandbox 说明
+
+当前实现是“独立快照 + 受管进程 + 最小环境变量 + 超时/进程树回收 + manifest 复核”，不是 OS 级安全沙箱。若目标项目包含不可信代码，应在宿主层增加一次性 VM 或容器：只读源码挂载、独立临时工作盘、非 root 用户、CPU/内存/PID 限制、默认断网、白名单代理、seccomp/AppContainer、超时后销毁整个实例，并把结果通过受控 artifact 导出。浏览器和构建进程都必须在该实例内运行；宿主不应把用户凭证传入。
+
+这属于可选的安全部署 profile，不改变当前本地 Harness 的核心任务模型，也不要求引入远程服务化架构。

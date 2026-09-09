@@ -8,6 +8,8 @@
 
 [快速开始](#快速开始) · [使用指南](guides/usage.md) · [开发状态](guides/status.md) · [问题反馈](https://github.com/Eimi-Fukada/leeway-ui-check/issues)
 
+第一次了解项目？先看 [项目导览](guides/project-tour.md)，里面按一次真实评测的流转顺序解释每个模块。
+
 ![Leeway UI Check 实际报告界面：截图对照、视觉评分、修复线索与候选历史](assets/readme/report-preview.png)
 
 _报告页支持参考图、当前截图、差异图与严格差异切换，并展示区域标记、阻断原因和候选历史。上图来自本地 Demo 的实际运行结果。_
@@ -139,8 +141,17 @@ npm run format:check
 
 - `ui_check_start`：开始一次已有任务
 - `ui_check_submit`：冻结并评测当前源码
+- `ui_check_submit_and_wait`：冻结、评测并直接返回完成报告
 - `ui_check_status`：获取得分、阻断、问题和下一步
 - `ui_check_cancel`：取消执行
 - `ui_check_finalize`：交付已验证通过的结果
 
+Owner 还可以调用 `detect_project` 识别 React/Vue/Svelte、Vite/Next、Tailwind 和常见入口；识别结果是便利层建议，启动命令仍需 owner 确认。
+
 底层的 `register_candidate`、`evaluate_candidate` 等接口仍保留给 CLI、CI 和调试使用。Facade 隐藏 candidate、evaluation、lease 和 artifact 细节，典型循环是 `start → submit → status → 修复 → submit → finalize`。
+
+## 评分配置与项目边界
+
+默认 profile 使用以下初始权重：`pixel 0.35`、`structure 0.20`、`layout 0.30`、`text 0.15`。这些值会保留，但 owner 可以在任务 profile 中自行配置；权重必须合计为 1，配置内容变化会生成新的 profile 版本。未完成 calibration/heldout 审核前，profile 仍为 provisional。
+
+Leeway UI Check 当前是本地、单用户 Harness。远程执行平台、云端队列、企业权限、分布式 artifact 存储和通用多租户服务不属于当前设计目标。

@@ -692,6 +692,81 @@
         "timezone": {
           "type": "string",
           "default": "UTC"
+        },
+        "responsive": {
+          "type": "object",
+          "properties": {
+            "required": {
+              "type": "boolean",
+              "default": false
+            },
+            "probe_widths": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "maxItems": 5,
+              "default": []
+            },
+            "max_horizontal_overflow_px": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          "additionalProperties": false,
+          "default": {
+            "required": false,
+            "probe_widths": [],
+            "max_horizontal_overflow_px": 0
+          }
+        },
+        "sandbox": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "network": {
+              "type": "string",
+              "enum": [
+                "disabled",
+                "loopback",
+                "inherit"
+              ],
+              "default": "loopback"
+            },
+            "max_memory_mb": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 2048
+            },
+            "max_cpu_seconds": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 600
+            },
+            "max_processes": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 128
+            },
+            "read_only_source": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false,
+          "default": {
+            "enabled": false,
+            "network": "loopback",
+            "max_memory_mb": 2048,
+            "max_cpu_seconds": 600,
+            "max_processes": 128,
+            "read_only_source": true
+          }
         }
       },
       "required": [

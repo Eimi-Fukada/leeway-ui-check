@@ -3,6 +3,7 @@ import { Command } from '../../../contracts/src/index.js';
 import { TaskService } from '../tasks/service.js';
 import { runCommand } from '../candidates/process.js';
 import { id } from '../storage/artifacts.js';
+import { planRepair } from './repair.js';
 export const AdapterConfig = z
   .object({ command: Command, attempt_timeout_seconds: z.number().int().positive().max(3600) })
   .strict();
@@ -95,7 +96,16 @@ export async function runController(
           task_id: taskId,
           source_dir: first.config.target.source_dir,
           attempt: count,
-          report: latest ?? null,
+          report: latest
+            ? {
+                ...latest,
+                repair_plan: planRepair(
+                  latest.score?.value ?? null,
+                  latest.issues,
+                  latest.blockers,
+                ),
+              }
+            : null,
         },
         attemptSignal,
       );
