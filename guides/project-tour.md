@@ -137,24 +137,24 @@ ui_check_start
 
 ## 代码目录地图
 
-| 目录 | 负责什么 |
-|---|---|
-| `packages/contracts` | Task、Profile、Report、Issue 等输入输出合同，以及 JSON Schema |
-| `packages/core/src/tasks` | 任务创建、候选注册、队列、评测、取消和交付 |
-| `packages/core/src/candidates` | 源码快照、manifest、受管进程和进程树回收 |
-| `packages/core/src/capture` | Playwright 截图、稳定性检查、DOM 信息、响应式探测 |
-| `packages/core/src/compare` | sharp 预处理、pixelmatch、SSIM worker 调用 |
-| `packages/core/src/scoring` | 区域几何、文字相似度、分数和阻断条件 |
-| `packages/core/src/controller` | Agent 自动修复循环和修复策略选择 |
-| `packages/core/src/project` | React/Vue/Svelte、Vite/Next、入口和样式工具识别 |
-| `packages/core/src/regions` | DOM/OCR/视觉区域建议；当前需要人工确认 |
-| `packages/core/src/sandbox` | 可选沙箱策略和受管环境变量 |
-| `packages/mcp` | MCP Server、Agent Facade 和底层工具 |
-| `packages/cli` | CLI 命令入口和独立 worker 启动入口 |
-| `apps/report-web` | 本地只读报告界面 |
-| `workers` | Python SSIM worker 和服务存活监督程序 |
-| `scripts` | Demo、fixture、Schema 导出 |
-| `tests` | 单元、真实浏览器集成和报告页 E2E 测试 |
+| 目录                           | 负责什么                                                      |
+| ------------------------------ | ------------------------------------------------------------- |
+| `packages/contracts`           | Task、Profile、Report、Issue 等输入输出合同，以及 JSON Schema |
+| `packages/core/src/tasks`      | 任务创建、候选注册、队列、评测、取消和交付                    |
+| `packages/core/src/candidates` | 源码快照、manifest、受管进程和进程树回收                      |
+| `packages/core/src/capture`    | Playwright 截图、稳定性检查、DOM 信息、响应式探测             |
+| `packages/core/src/compare`    | sharp 预处理、pixelmatch、SSIM worker 调用                    |
+| `packages/core/src/scoring`    | 区域几何、文字相似度、分数和阻断条件                          |
+| `packages/core/src/controller` | Agent 自动修复循环和修复策略选择                              |
+| `packages/core/src/project`    | React/Vue/Svelte、Vite/Next、入口和样式工具识别               |
+| `packages/core/src/regions`    | DOM/OCR/视觉区域建议；当前需要人工确认                        |
+| `packages/core/src/sandbox`    | 可选沙箱策略和受管环境变量                                    |
+| `packages/mcp`                 | MCP Server、Agent Facade 和底层工具                           |
+| `packages/cli`                 | CLI 命令入口和独立 worker 启动入口                            |
+| `apps/report-web`              | 本地只读报告界面                                              |
+| `workers`                      | Python SSIM worker 和服务存活监督程序                         |
+| `scripts`                      | Demo、fixture、Schema 导出                                    |
+| `tests`                        | 单元、真实浏览器集成和报告页 E2E 测试                         |
 
 ## 你实际需要记住的三个命令
 
