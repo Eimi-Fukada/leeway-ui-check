@@ -4,7 +4,7 @@
 
 安装依赖后，在独立终端执行 `npm run worker`。MCP 仅提交与查询，不执行队列；宿主负责启动 stdio MCP 进程。CLI、worker 和 MCP 必须使用同一个 HARNESS_HOME（默认用户目录的 `.leeway-ui-check`）。
 
-先按 [使用指南](usage.md) 创建任务，拿到 task_id；start 不会创建任务。
+`ui_check_start` 会创建任务。你需要提供参考截图路径、目标源码目录、viewport 和启动命令；返回的 `run_id` 用于后续提交。
 
 支持通用 mcpServers JSON 格式的宿主可使用下面的示例。将 `<HARNESS_DIR>` 替换为本仓库绝对路径，`<DATA_DIR>` 替换为数据目录；node 必须在宿主 PATH 中，否则使用其绝对路径。
 
@@ -35,7 +35,7 @@
 | ui_check_cancel   | run_id                                              | 请求取消；进程清理结束前不保证已取消     |
 | ui_check_finalize | run_id                                              | 复核并交付通过的候选                     |
 
-run_id 就是 task_id。提交等待时间从排队后计算，源码快照还需要额外时间。等待结束不取消工作；没有 worker 时保持 running。新代码用新 request_id；网络重试用原 request_id，不会重新冻结源码或增加评测次数。
+run_id 就是 task_id。MCP 内部 worker 会继续执行。提交等待时间从排队后计算；等待结束不取消工作。新代码用新 request_id；网络重试用原 request_id，不会重新冻结源码或增加评测次数。
 
 返回 score、verdict、blockers、issues、components、budget_remaining、next_action 和工件 URI。处理期间 score=null。历史仍保存在报告页和 owner 接口中。图像通过 `harness://artifacts/{artifact_id}` 资源读取；支持与否取决于宿主。
 
@@ -49,4 +49,4 @@ run_id 就是 task_id。提交等待时间从排队后计算，源码快照还�
 
 ## 迁移
 
-移除 `ui_check_submit_and_wait`，改用 `ui_check_submit`；底层工具仅在 owner 模式注册。旧客户端需要刷新工具列表。无需更改已有 SQLite 数据。
+`ui_check_start` 现在从参考图和项目目录创建任务；`ui_check_submit` 统一负责提交和短暂等待；MCP 进程内部管理 worker。旧客户端需要刷新工具列表。

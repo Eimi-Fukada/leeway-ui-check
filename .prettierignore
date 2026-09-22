@@ -5,3 +5,5 @@ dist
 docs/design-v0.1.md
 packages/contracts/schemas
 package-lock.json
+pnpm-lock.yaml
+pnpm-workspace.yaml

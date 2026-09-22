@@ -82,3 +82,35 @@ it('exposes exactly five agent tools and ten owner tools, with no submit_and_wai
     service.close();
   }
 });
+it('creates a run from a reference image and project inputs through ui_check_start', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'leeway-start-')),
+    config = await makeFixture(root),
+    service = new TaskService(path.join(root, 'store')),
+    server = createMcpServer(service),
+    client = new Client({ name: 'start-test', version: '1' }),
+    [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(a);
+  await client.connect(b);
+  try {
+    const result = await client.callTool({
+      name: 'ui_check_start',
+      arguments: {
+        reference_image_path: config.reference_path,
+        source_dir: config.target.mode === 'managed' ? config.target.source_dir : '',
+        viewport_width: 960,
+        viewport_height: 640,
+        ready_selector: '[data-page-ready]',
+        serve:
+          config.target.mode === 'managed' ? config.target.serve : { executable: 'node', args: [] },
+      },
+    });
+    expect((result.structuredContent as any).run_id).toMatch(/^task_/);
+    expect((result.structuredContent as any).requirements.reference_path).toBe(
+      config.reference_path,
+    );
+  } finally {
+    await client.close();
+    await server.close();
+    service.close();
+  }
+});

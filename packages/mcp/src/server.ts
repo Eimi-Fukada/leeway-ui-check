@@ -1,9 +1,24 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { Id, TaskInput, Report } from '../../contracts/src/index.js';
+import {
+  Id,
+  TaskInput,
+  Report,
+  Profile,
+  Region,
+  Check,
+  defaultProfile,
+} from '../../contracts/src/index.js';
 import { TaskService } from '../../core/src/tasks/service.js';
 import { detectProject } from '../../core/src/project/detect.js';
 import { suggestRegions } from '../../core/src/regions/suggestions.js';
+const ResponsiveInput = z
+  .object({
+    required: z.boolean().default(false),
+    probe_widths: z.array(z.number().int().positive()).max(5).default([]),
+    max_horizontal_overflow_px: z.number().int().min(0).default(0),
+  })
+  .strict();
 export function createMcpServer(service: TaskService, owner = false) {
   const server = new McpServer({ name: 'leeway-ui-check', version: '0.1.0' });
   const wrap = async (work: () => unknown | Promise<unknown>) => {
@@ -34,18 +49,83 @@ export function createMcpServer(service: TaskService, owner = false) {
   if (!owner) {
     server.registerTool(
       'ui_check_start',
-      { description: 'Start a UI fidelity run.', inputSchema: { task_id: Id } },
-      ({ task_id }) =>
-        wrap(() => ({
-          ...service.agentStatus(task_id),
-          requirements: service.task(task_id).config,
-        })),
+      {
+        description: 'Create a UI fidelity run from a reference image and target project.',
+        inputSchema: {
+          reference_image_path: z.string().min(1),
+          source_dir: z.string().min(1),
+          viewport_width: z.number().int().positive().max(8192),
+          viewport_height: z.number().int().positive().max(8192),
+          device_scale_factor: z.number().positive().max(4).default(1),
+          ready_selector: z.string().min(1).default('[data-page-ready]'),
+          serve: z
+            .object({ executable: z.string().min(1), args: z.array(z.string()).default([]) })
+            .strict(),
+          build: z
+            .array(
+              z
+                .object({ executable: z.string().min(1), args: z.array(z.string()).default([]) })
+                .strict(),
+            )
+            .default([]),
+          regions: z.array(Region).default([]),
+          required_checks: z.array(Check).default([]),
+          responsive: ResponsiveInput.optional(),
+          pass_threshold: z.number().min(0).max(100).default(90),
+        },
+      },
+      (input) =>
+        wrap(async () => {
+          const profile = input.regions.length
+            ? { ...defaultProfile, profile_id: 'facade-annotated-v1' }
+            : {
+                ...defaultProfile,
+                profile_id: 'facade-pixel-diagnostic-v1',
+                mode: 'pixel_diagnostic' as const,
+                weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
+              };
+          const config = {
+            schema_version: '1.0' as const,
+            reference_path: input.reference_image_path,
+            reference: {
+              viewport_css: { width: input.viewport_width, height: input.viewport_height },
+              device_scale_factor: input.device_scale_factor,
+              capture_mode: 'viewport' as const,
+              scroll: { x: 0, y: 0 },
+              confirmed: true,
+            },
+            target: {
+              mode: 'managed' as const,
+              source_dir: input.source_dir,
+              ready_selector: input.ready_selector,
+              build: input.build,
+              serve: input.serve,
+              url_path: '/',
+            },
+            profile,
+            regions: input.regions,
+            required_checks: input.required_checks,
+            pass_threshold: input.pass_threshold,
+            threshold_operator: 'gte' as const,
+            budget: { max_iterations: 8, max_wall_seconds: 1200 },
+            responsive: input.responsive ?? {
+              required: false,
+              probe_widths: [],
+              max_horizontal_overflow_px: 0,
+            },
+          };
+          const created = await service.createTask(config);
+          return {
+            ...service.agentStatus(created.task_id),
+            requirements: service.task(created.task_id).config,
+          };
+        }),
     );
     server.registerTool(
       'ui_check_submit',
       {
         description:
-          'Submit once per request_id and wait briefly; running means poll status. Requires independent worker.',
+          'Submit once per request_id and wait briefly; the MCP-owned worker continues when running is returned.',
         inputSchema: {
           run_id: Id,
           request_id: Id,

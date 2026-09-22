@@ -32,6 +32,6 @@ Task 是固定要求的一次任务；Candidate 是某一轮源码副本；Evalu
 | workers/service_supervisor.mjs              | 父进程退出时回收页面服务                                          |
 | scripts/schemas.ts                          | 导出JSON Schema，不负责传输报告                                   |
 
-提交在短文件锁内串行冻结源码，数据库事务不跨文件IO。相同request_id复用已排队评测。worker通过租约和fence控制提交权；等待超时不会取消评测。进程异常退出留下的提交锁采用显式人工恢复，见 [FAQ](faq.md)。
+提交在短文件锁内串行冻结源码，数据库事务不跨文件IO。相同request_id复用已排队评测。MCP进程内部 worker 通过租约和fence控制提交权；等待超时不会取消评测。进程异常退出留下的提交锁采用显式人工恢复，见 [FAQ](faq.md)。
 
 正式通过需要得分满足阈值、无阻断、已验证profile及可验证来源。finalize再次核对源码和构建产物。当前best_candidate仅从无阻断的结果中选取，不代表所有失败尝试中最高分的版本。

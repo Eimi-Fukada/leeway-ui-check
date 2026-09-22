@@ -25,7 +25,7 @@ npm run cli -- create-task "你的任务配置绝对路径.json"
 npm run worker
 ```
 
-连接 [MCP](mcp.md) 后即可让 Agent 提交。手工操作也可以：
+连接 [MCP](mcp.md) 后，Agent 可以从参考图启动任务、提交代码并读取报告；MCP 进程会自动运行本地 worker。手工 CLI 操作也可以：
 
 ```powershell
 npm run cli -- register-candidate TASK_ID
