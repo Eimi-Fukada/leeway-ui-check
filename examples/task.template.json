@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "reference_path": "REPLACE_REFERENCE_PNG_ABSOLUTE_PATH",
+  "reference": {
+    "viewport_css": {
+      "width": 375,
+      "height": 812
+    },
+    "device_scale_factor": 1,
+    "capture_mode": "viewport",
+    "scroll": {
+      "x": 0,
+      "y": 0
+    },
+    "confirmed": true
+  },
+  "target": {
+    "mode": "managed",
+    "source_dir": "REPLACE_SOURCE_ABSOLUTE_PATH",
+    "ready_selector": "[data-page-ready]",
+    "build": [],
+    "serve": {
+      "executable": "REPLACE_NODE_EXECUTABLE_ABSOLUTE_PATH",
+      "args": ["server.mjs", "{port}"]
+    },
+    "url_path": "/"
+  },
+  "profile": {
+    "profile_id": "mobile-provisional-v1",
+    "evaluator_version": "leeway-0.1.0",
+    "status": "provisional",
+    "pixel": {
+      "threshold": 0.1,
+      "include_aa": false,
+      "d_bad": 0.25
+    },
+    "ssim": {
+      "window": 7,
+      "gaussian_weights": false,
+      "s_bad": 0.5
+    },
+    "weights": {
+      "pixel": 0.35,
+      "structure": 0.2,
+      "layout": 0.3,
+      "text": 0.15
+    },
+    "critical_threshold": 90,
+    "text_normalization": "unicode_whitespace"
+  },
+  "regions": [
+    {
+      "region_id": "title",
+      "kind": "text",
+      "bbox": {
+        "x": 16,
+        "y": 24,
+        "width": 343,
+        "height": 32
+      },
+      "selector": "[data-testid=\"title\"]",
+      "expected_text": "REPLACE_TITLE_TEXT",
+      "critical": true,
+      "weight": 1,
+      "geometry_tolerance": {
+        "position": 8,
+        "size": 8
+      }
+    }
+  ],
+  "required_checks": [
+    {
+      "id": "open_details",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "[data-testid=\"details\"]"
+        },
+        {
+          "action": "visible",
+          "selector": "dialog[open]"
+        }
+      ]
+    }
+  ],
+  "pass_threshold": 90,
+  "threshold_operator": "gte",
+  "budget": {
+    "max_iterations": 8,
+    "max_wall_seconds": 1200
+  },
+  "responsive": {
+    "required": true,
+    "probe_widths": [343, 407],
+    "max_horizontal_overflow_px": 0
+  }
+}

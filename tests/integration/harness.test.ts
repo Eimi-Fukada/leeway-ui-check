@@ -153,12 +153,12 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     try {
       const tools = await client.listTools();
       expect(tools.tools.map((t) => t.name)).not.toContain('create_task');
-      const { evaluation } = await evaluate('exact');
+      const { task, evaluation } = await evaluate('exact');
       const result = await client.callTool({
-        name: 'get_evaluation',
-        arguments: { evaluation_id: evaluation.evaluation_id },
+        name: 'ui_check_status',
+        arguments: { run_id: task.task_id },
       });
-      expect(((result.structuredContent as any)?.report as any).score.value).toBe(100);
+      expect((result.structuredContent as any).score.value).toBe(100);
       const artifact = await client.readResource({
         uri: `harness://artifacts/${evaluation.report!.artifacts.diff}`,
       });

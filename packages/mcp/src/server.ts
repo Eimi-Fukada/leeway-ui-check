@@ -31,42 +31,46 @@ export function createMcpServer(service: TaskService, owner = false) {
       },
       ({ config }) => wrap(() => service.createTask(config)),
     );
-  server.registerTool(
-    'ui_check_submit_and_wait',
-    {
-      description: 'Freeze, evaluate and return the completed score/report.',
-      inputSchema: { run_id: Id, request_id: Id },
-    },
-    ({ run_id, request_id }) => wrap(() => service.submitAndWait(run_id, request_id)),
-  );
   if (!owner) {
     server.registerTool(
       'ui_check_start',
       { description: 'Start a UI fidelity run.', inputSchema: { task_id: Id } },
       ({ task_id }) =>
         wrap(() => ({
-          run_id: task_id,
-          status: service.getTaskStatus(task_id).state,
-          next_action: 'submit',
+          ...service.agentStatus(task_id),
+          requirements: service.task(task_id).config,
         })),
     );
     server.registerTool(
       'ui_check_submit',
       {
-        description: 'Freeze and evaluate the current source revision.',
-        inputSchema: { run_id: Id, request_id: Id },
+        description:
+          'Submit once per request_id and wait briefly; running means poll status. Requires independent worker.',
+        inputSchema: {
+          run_id: Id,
+          request_id: Id,
+          wait_ms: z.number().int().min(0).max(30000).default(10000),
+        },
       },
-      ({ run_id, request_id }) => wrap(() => service.submitCandidate(run_id, request_id)),
+      ({ run_id, request_id, wait_ms }) =>
+        wrap(() => service.submitAndWait(run_id, request_id, wait_ms)),
     );
     server.registerTool(
       'ui_check_status',
-      { description: 'Get score, blockers and issues.', inputSchema: { run_id: Id } },
-      ({ run_id }) => wrap(() => service.getTaskStatus(run_id)),
+      {
+        description: 'Get score, blockers and issues.',
+        inputSchema: { run_id: Id, request_id: Id.optional() },
+      },
+      ({ run_id, request_id }) => wrap(() => service.agentStatus(run_id, request_id)),
     );
     server.registerTool(
       'ui_check_cancel',
       { description: 'Cancel a run.', inputSchema: { run_id: Id } },
-      ({ run_id }) => wrap(() => service.cancelTask(run_id)),
+      ({ run_id }) =>
+        wrap(() => {
+          service.cancelTask(run_id);
+          return service.agentStatus(run_id);
+        }),
     );
     server.registerTool(
       'ui_check_finalize',
@@ -98,80 +102,83 @@ export function createMcpServer(service: TaskService, owner = false) {
       },
       ({ source_dir }) => wrap(() => suggestRegions(source_dir)),
     );
-  server.registerTool(
-    'register_candidate',
-    {
-      description: 'Freeze the configured source directory; cannot change reference or target.',
-      inputSchema: { task_id: Id },
-    },
-    ({ task_id }) => wrap(() => service.registerCandidate(task_id)),
-  );
-  server.registerTool(
-    'evaluate_candidate',
-    {
-      description: 'Queue once per request_id. Worker must be running; disconnect does not cancel.',
-      inputSchema: { candidate_id: Id, request_id: Id },
-      outputSchema: { evaluation_id: Id.nullable(), state: z.string() },
-    },
-    ({ candidate_id, request_id }) =>
-      wrap(() => service.evaluateCandidate(candidate_id, request_id)),
-  );
-  server.registerTool(
-    'get_evaluation',
-    {
-      description: 'Read persisted evaluation; processing has no score.',
-      inputSchema: { evaluation_id: Id },
-      outputSchema: {
-        evaluation_id: Id,
-        candidate_id: Id,
-        state: z.string(),
-        report: Report.nullable(),
-        error: z.string().nullable(),
+  if (owner) {
+    server.registerTool(
+      'register_candidate',
+      {
+        description: 'Freeze the configured source directory; cannot change reference or target.',
+        inputSchema: { task_id: Id },
       },
-    },
-    ({ evaluation_id }) => wrap(() => service.getEvaluation(evaluation_id)),
-  );
-  server.registerTool(
-    'get_task_status',
-    {
-      description: 'Task state, budget, latest and best candidates.',
-      inputSchema: { task_id: Id },
-    },
-    ({ task_id }) => wrap(() => service.getTaskStatus(task_id)),
-  );
-  server.registerTool(
-    'get_artifact',
-    {
-      description: 'Resolve an immutable managed artifact to an MCP resource URI.',
-      inputSchema: { artifact_id: Id },
-    },
-    ({ artifact_id }) =>
-      wrap(() => {
-        const a = service.getArtifact(artifact_id);
-        return {
-          artifact_id,
-          sha256: a.sha256,
-          media_type: a.media_type,
-          uri: `harness://artifacts/${artifact_id}`,
-        };
-      }),
-  );
-  server.registerTool(
-    'finalize_task',
-    {
-      description: 'Deliver only the exact verified, calibrated passing snapshot.',
-      inputSchema: { task_id: Id, candidate_id: Id },
-    },
-    ({ task_id, candidate_id }) => wrap(() => service.finalizeTask(task_id, candidate_id)),
-  );
-  server.registerTool(
-    'cancel_task',
-    {
-      description: 'Request cancellation; completion waits for owned process cleanup.',
-      inputSchema: { task_id: Id },
-    },
-    ({ task_id }) => wrap(() => service.cancelTask(task_id)),
-  );
+      ({ task_id }) => wrap(() => service.registerCandidate(task_id)),
+    );
+    server.registerTool(
+      'evaluate_candidate',
+      {
+        description:
+          'Queue once per request_id. Worker must be running; disconnect does not cancel.',
+        inputSchema: { candidate_id: Id, request_id: Id },
+        outputSchema: { evaluation_id: Id.nullable(), state: z.string() },
+      },
+      ({ candidate_id, request_id }) =>
+        wrap(() => service.evaluateCandidate(candidate_id, request_id)),
+    );
+    server.registerTool(
+      'get_evaluation',
+      {
+        description: 'Read persisted evaluation; processing has no score.',
+        inputSchema: { evaluation_id: Id },
+        outputSchema: {
+          evaluation_id: Id,
+          candidate_id: Id,
+          state: z.string(),
+          report: Report.nullable(),
+          error: z.string().nullable(),
+        },
+      },
+      ({ evaluation_id }) => wrap(() => service.getEvaluation(evaluation_id)),
+    );
+    server.registerTool(
+      'get_task_status',
+      {
+        description: 'Task state, budget, latest and best candidates.',
+        inputSchema: { task_id: Id },
+      },
+      ({ task_id }) => wrap(() => service.getTaskStatus(task_id)),
+    );
+    server.registerTool(
+      'get_artifact',
+      {
+        description: 'Resolve an immutable managed artifact to an MCP resource URI.',
+        inputSchema: { artifact_id: Id },
+      },
+      ({ artifact_id }) =>
+        wrap(() => {
+          const a = service.getArtifact(artifact_id);
+          return {
+            artifact_id,
+            sha256: a.sha256,
+            media_type: a.media_type,
+            uri: `harness://artifacts/${artifact_id}`,
+          };
+        }),
+    );
+    server.registerTool(
+      'finalize_task',
+      {
+        description: 'Deliver only the exact verified, calibrated passing snapshot.',
+        inputSchema: { task_id: Id, candidate_id: Id },
+      },
+      ({ task_id, candidate_id }) => wrap(() => service.finalizeTask(task_id, candidate_id)),
+    );
+    server.registerTool(
+      'cancel_task',
+      {
+        description: 'Request cancellation; completion waits for owned process cleanup.',
+        inputSchema: { task_id: Id },
+      },
+      ({ task_id }) => wrap(() => service.cancelTask(task_id)),
+    );
+  }
   server.registerResource(
     'artifact',
     new ResourceTemplate('harness://artifacts/{artifact_id}', { list: undefined }),

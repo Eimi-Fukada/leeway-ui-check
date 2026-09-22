@@ -1,6 +1,6 @@
 import path from 'node:path';
 import os from 'node:os';
-import { readFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir, rmdir } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -362,20 +362,109 @@ export class TaskService {
     return this.getTaskStatus(taskId);
   }
   async submitCandidate(taskId: string, requestId: string) {
-    const candidate = await this.registerCandidate(taskId);
-    return {
-      ...this.evaluateCandidate(candidate.candidate_id, requestId),
-      candidate_id: candidate.candidate_id,
-    };
-  }
-  async submitAndWait(taskId: string, requestId: string, signal = new AbortController().signal) {
-    const queued = await this.submitCandidate(taskId, requestId);
-    if (!queued.evaluation_id) return this.getTaskStatus(taskId);
+    if (!/^[a-zA-Z0-9_-]{1,100}$/.test(requestId)) throw Error('invalid_request_id');
+    this.task(taskId);
+    const existing = () =>
+      this.store.get<{ evaluation_id: string; candidate_id: string; state: string }>(
+        'SELECT id AS evaluation_id,candidate_id,state FROM evaluations WHERE task_id=? AND request_id=?',
+        taskId,
+        requestId,
+      );
+    const replay = existing();
+    if (replay) return replay;
+    // Cross-process snapshot serialization. Never hold a SQLite transaction across file IO.
+    const parent = path.join(this.root, 'submission-locks');
+    await mkdir(parent, { recursive: true });
+    const lock = path.join(parent, taskId);
+    const deadline = Date.now() + 5000;
     while (true) {
-      const result = this.getEvaluation(queued.evaluation_id);
-      if (!['queued', 'capturing', 'comparing', 'testing'].includes(result.state)) return result;
-      await this.runNext(signal);
+      try {
+        await mkdir(lock);
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        const replay = existing();
+        if (replay) return replay;
+        if (Date.now() >= deadline) throw Error('submission_busy');
+        await delay(100);
+      }
     }
+    try {
+      const replay = existing();
+      if (replay) return replay;
+      if (
+        this.store.get(
+          "SELECT id FROM evaluations WHERE task_id=? AND state IN ('queued','capturing','comparing','testing')",
+          taskId,
+        )
+      )
+        throw Error('evaluation_conflict');
+      const candidate = await this.registerCandidate(taskId);
+      return {
+        ...this.evaluateCandidate(candidate.candidate_id, requestId),
+        candidate_id: candidate.candidate_id,
+      };
+    } finally {
+      await rmdir(lock);
+    }
+  }
+  async submitAndWait(taskId: string, requestId: string, waitMs = 10000) {
+    if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 30000) throw Error('invalid_wait_ms');
+    const queued = await this.submitCandidate(taskId, requestId);
+    if (!queued.evaluation_id) return this.agentStatus(taskId);
+    const deadline = Date.now() + waitMs;
+    while (Date.now() < deadline) {
+      const result = this.getEvaluation(queued.evaluation_id);
+      if (!['queued', 'capturing', 'comparing', 'testing'].includes(result.state)) break;
+      await delay(Math.min(200, Math.max(1, deadline - Date.now())));
+    }
+    return this.agentStatus(taskId, requestId);
+  }
+  agentStatus(taskId: string, requestId?: string) {
+    const task = this.task(taskId);
+    const row = requestId
+      ? this.store.get(
+          'SELECT * FROM evaluations WHERE task_id=? AND request_id=?',
+          taskId,
+          requestId,
+        )
+      : this.store.get(
+          'SELECT * FROM evaluations WHERE task_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1',
+          taskId,
+        );
+    if (requestId && !row) throw Error('request_not_found');
+    const report = row?.report ? Report.parse(JSON.parse(row.report)) : null;
+    const processing = row && ['queued', 'capturing', 'comparing', 'testing'].includes(row.state);
+    return {
+      run_id: taskId,
+      task_state: task.state,
+      request_id: row?.request_id ?? null,
+      status: processing ? 'running' : (row?.state ?? task.state),
+      score: report?.score ?? null,
+      verdict: report?.verdict ?? null,
+      blockers: report?.blockers ?? [],
+      issues: report?.issues ?? [],
+      components: report?.components ?? null,
+      budget_remaining: this.remaining(taskId),
+      artifacts: report
+        ? Object.fromEntries(
+            Object.entries(report.artifacts)
+              .filter(([, v]) => v)
+              .map(([k, v]) => [k, `harness://artifacts/${v}`]),
+          )
+        : {},
+      next_action: terminal.has(task.state)
+        ? 'stop'
+        : task.cancellation_requested_at
+          ? 'wait_for_cancellation'
+          : processing
+            ? 'poll_status'
+            : report?.verdict === 'pass'
+              ? 'finalize'
+              : report?.blockers.includes('profile_not_validated') && report.blockers.length === 1
+                ? 'review_configuration'
+                : (report?.next_action ?? 'submit'),
+    };
   }
   async finalizeTask(taskId: string, candidateId: string) {
     const t = this.task(taskId),
