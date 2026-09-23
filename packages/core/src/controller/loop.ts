@@ -33,7 +33,7 @@ export async function runController(
   signal = new AbortController().signal,
 ) {
   const first = service.task(taskId);
-  if (first.config.target.mode !== 'managed') throw Error('controller_requires_managed_target');
+  if (first.config.target.mode !== 'workspace') throw Error('controller_requires_workspace_target');
   if (['passed', 'failed', 'cancelled', 'stalled', 'budget_exhausted'].includes(first.state))
     return service.getTaskStatus(taskId);
   service.store.run(

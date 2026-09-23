@@ -130,7 +130,7 @@ export const Target = z.discriminatedUnion('mode', [
     .strict(),
   z
     .object({
-      mode: z.literal('managed'),
+      mode: z.literal('workspace'),
       source_dir: z.string().min(1),
       ready_selector: z.string().min(1),
       build: z.array(Command).default([]),

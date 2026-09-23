@@ -7,7 +7,7 @@ import { makeFixture } from '../../scripts/fixtures.js';
 import { createMcpServer } from '../../packages/mcp/src/server.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-it('serializes snapshots across connections, replays submissions, waits without consuming jobs, and resumes after worker completes', async () => {
+it('serializes workspace submissions, replays requests, waits without consuming jobs, and resumes after worker completes', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'leeway-facade-'));
   const config = await makeFixture(root);
   const service = new TaskService(path.join(root, 'store')),
@@ -96,12 +96,14 @@ it('creates a run from a reference image and project inputs through ui_check_sta
       name: 'ui_check_start',
       arguments: {
         reference_image_path: config.reference_path,
-        source_dir: config.target.mode === 'managed' ? config.target.source_dir : '',
+        source_dir: config.target.mode === 'workspace' ? config.target.source_dir : '',
         viewport_width: 960,
         viewport_height: 640,
         ready_selector: '[data-page-ready]',
         serve:
-          config.target.mode === 'managed' ? config.target.serve : { executable: 'node', args: [] },
+          config.target.mode === 'workspace'
+            ? config.target.serve
+            : { executable: 'node', args: [] },
       },
     });
     expect((result.structuredContent as any).run_id).toMatch(/^task_/);
@@ -111,6 +113,26 @@ it('creates a run from a reference image and project inputs through ui_check_sta
   } finally {
     await client.close();
     await server.close();
+    service.close();
+  }
+});
+it('evaluates workspace mode in place without copying the source workspace', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'leeway-workspace-')),
+    config = await makeFixture(root);
+  config.target = { ...config.target, mode: 'workspace' } as typeof config.target;
+  const service = new TaskService(path.join(root, 'store')),
+    worker = new TaskService(service.root);
+  try {
+    const task = await service.createTask(config),
+      queued = await service.submitCandidate(task.task_id, 'workspace_001');
+    expect(queued.evaluation_id).toBeTruthy();
+    expect((await service.candidate(queued.candidate_id)).workspace_path).toBeNull();
+    await worker.runNext();
+    const result = service.getEvaluation(queued.evaluation_id!);
+    expect(result.state).toBe('completed');
+    expect(result.report?.score).toBeTruthy();
+  } finally {
+    worker.close();
     service.close();
   }
 });

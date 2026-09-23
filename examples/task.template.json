@@ -15,7 +15,7 @@
     "confirmed": true
   },
   "target": {
-    "mode": "managed",
+    "mode": "workspace",
     "source_dir": "REPLACE_SOURCE_ABSOLUTE_PATH",
     "ready_selector": "[data-page-ready]",
     "build": [],

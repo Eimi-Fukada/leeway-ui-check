@@ -3,21 +3,21 @@
 本页说明当前实现。安装和操作见 [使用指南](usage.md)。
 
 ```text
-CLI / MCP → TaskService → 源码快照 → SQLite评测队列
+CLI / MCP → TaskService → 工作区 manifest → SQLite评测队列
                                       ↓ 独立worker领取
 构建并启动 → Playwright截图/DOM/交互 → 像素/SSIM/布局/文字
                                       ↓
                         Report + ArtifactStore → Agent读取后修改源码
 ```
 
-Task 是固定要求的一次任务；Candidate 是某一轮源码副本；Evaluation 是对候选的检查；Artifact 是截图、差异图、DOM、日志等证据文件。
+Task 是固定要求的一次任务；Candidate 是某一轮源码 manifest；Evaluation 是对该工作区版本的检查；Artifact 是截图、差异图、DOM、日志等证据文件。
 
 | 文件或目录                                  | 职责                                                              |
 | ------------------------------------------- | ----------------------------------------------------------------- |
 | packages/cli/src/index.ts                   | 终端命令入口、worker循环、报告服务入口                            |
 | packages/mcp/src/server.ts                  | Agent五工具与owner十工具、资源读取；提交只等待，不执行队列        |
 | packages/contracts/src/index.ts             | Zod运行时合同、类型、默认配置                                     |
-| packages/core/src/tasks/service.ts          | 创建任务、快照注册、去重、队列租约、单轮评测、取消和交付          |
+| packages/core/src/tasks/service.ts          | 创建任务、工作区版本登记、去重、队列租约、单轮评测、取消和交付    |
 | packages/core/src/candidates                | 文件清单/hash、复制副本、受管进程及清理                           |
 | packages/core/src/capture                   | 截图稳定性、标注DOM数据、交互、基础响应式探测                     |
 | packages/core/src/compare                   | sharp/pixelmatch、Python SSIM调用                                 |

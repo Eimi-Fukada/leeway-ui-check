@@ -39,7 +39,7 @@ npm run cli -- report
 
 ## 构建和运行约定
 
-候选不会复制 node_modules、dist、.next、.env 和常见密钥文件。构建必须在副本中恢复依赖并生成产物。Windows 使用实际可执行程序；npm 可以用 `node <npm-cli.js绝对路径> ci`，不依赖 shell 拼接。模板的 Node 服务只是启动方式示意；React/Vue/Next 项目应按实际脚本配置。自动识别只提供建议，不保证可运行。
+workspace 模式直接使用目标工作区和已有依赖；每轮只记录 manifest、报告与证据，不长期复制完整源码。构建命令应避免修改源码文件。workspace 模式不会复制源码；它直接使用工作区依赖。Windows 使用实际可执行程序；npm 可以用 `node <npm-cli.js绝对路径> ci`，不依赖 shell 拼接。模板的 Node 服务只是启动方式示意；React/Vue/Next 项目应按实际脚本配置。自动识别只提供建议，不保证可运行。
 
 外部 URL 使用 `target.mode: external`，只做诊断，不能验证对应源码版本或 finalize。完整字段见 [Task Schema](../packages/contracts/schemas/task.schema.json)。
 
@@ -47,7 +47,7 @@ npm run cli -- report
 
 HARNESS_HOME 默认为用户目录 `.leeway-ui-check`，必须位于目标源码目录之外。HARNESS_PYTHON 可指定 Python 解释器；默认使用仓库 `.venv`。Windows 为当前测试平台，其他系统尚未完整验收。
 
-取消：`npm run cli -- cancel-task TASK_ID`。通过后：`npm run cli -- finalize-task TASK_ID CANDIDATE_ID`，复核源码与构建指纹后返回快照路径，不覆盖原工作区。
+取消：`npm run cli -- cancel-task TASK_ID`。通过后：`npm run cli -- finalize-task TASK_ID CANDIDATE_ID`，复核源码与构建指纹后返回已验证的工作区版本信息，不覆盖原工作区。
 
 默认 profile 为 provisional，不会正式通过。正式配置需要 owner 审核独立校准与留出集证据，见 [校准协议](../evals/calibration/README.md)。
 

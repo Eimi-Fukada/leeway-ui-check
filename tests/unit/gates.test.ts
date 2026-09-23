@@ -19,7 +19,7 @@ const config = TaskInput.parse({
     confirmed: true,
   },
   target: {
-    mode: 'managed',
+    mode: 'workspace',
     source_dir: 'target',
     ready_selector: 'body',
     serve: { executable: 'node', args: ['server.mjs'] },

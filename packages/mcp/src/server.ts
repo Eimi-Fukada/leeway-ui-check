@@ -95,7 +95,7 @@ export function createMcpServer(service: TaskService, owner = false) {
               confirmed: true,
             },
             target: {
-              mode: 'managed' as const,
+              mode: 'workspace' as const,
               source_dir: input.source_dir,
               ready_selector: input.ready_selector,
               build: input.build,
@@ -228,7 +228,7 @@ export function createMcpServer(service: TaskService, owner = false) {
     server.registerTool(
       'get_artifact',
       {
-        description: 'Resolve an immutable managed artifact to an MCP resource URI.',
+        description: 'Resolve an immutable workspace artifact to an MCP resource URI.',
         inputSchema: { artifact_id: Id },
       },
       ({ artifact_id }) =>
@@ -245,7 +245,7 @@ export function createMcpServer(service: TaskService, owner = false) {
     server.registerTool(
       'finalize_task',
       {
-        description: 'Deliver only the exact verified, calibrated passing snapshot.',
+        description: 'Deliver only the exact verified, calibrated passing workspace version.',
         inputSchema: { task_id: Id, candidate_id: Id },
       },
       ({ task_id, candidate_id }) => wrap(() => service.finalizeTask(task_id, candidate_id)),

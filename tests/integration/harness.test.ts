@@ -43,7 +43,7 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     expect(replay.evaluation_id).toBe(evaluation.evaluation_id);
     expect(service.task(task.task_id).iterations).toBe(1);
   });
-  it('locates 16px shift and retains frozen source when original files change', async () => {
+  it('rejects a workspace change made after submission', async () => {
     await writeFile(path.join(root, 'target/index.html'), fixtureHtml('shift'));
     const task = await service.createTask(config),
       candidate = await service.registerCandidate(task.task_id);
@@ -51,11 +51,8 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     const queued = service.evaluateCandidate(candidate.candidate_id, 'shift');
     await service.runNext();
     const report = service.getEvaluation(queued.evaluation_id!).report!;
-    expect(
-      report.issues.find((i) => i.region_id === 'title' && i.kind === 'geometry')?.delta_px?.y,
-    ).toBe(16);
-    expect(report.blockers).toContain('critical_geometry:title');
-    expect(report.score!.value).toBeLessThan(90);
+    expect(report.score).toBeNull();
+    expect(report.blockers).toContain('workspace_changed_during_evaluation');
   });
   it.each([
     'blank',
@@ -118,7 +115,7 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     expect(service.task(task.task_id).state).toBe('budget_exhausted');
     expect(service.getEvaluation(queued.evaluation_id!).report?.verdict).not.toBe('pass');
   });
-  it('cancels in flight and only settles after the managed evaluation is cleaned up', async () => {
+  it('cancels in flight and only settles after the workspace evaluation is cleaned up', async () => {
     await writeFile(path.join(root, 'target/index.html'), fixtureHtml('animation'));
     const task = await service.createTask(config),
       candidate = await service.registerCandidate(task.task_id),
@@ -130,7 +127,7 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     expect(service.task(task.task_id).state).toBe('cancelled');
     expect(service.getEvaluation(queued.evaluation_id!).state).toBe('cancelled');
   });
-  it('rejects profile tampering and corrupted snapshot provenance', async () => {
+  it('rejects profile tampering and changed workspace provenance', async () => {
     await expect(
       service.createTask({
         ...config,
@@ -139,10 +136,12 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     ).rejects.toThrow('profile_id_immutable');
     const task = await service.createTask(config),
       candidate = await service.registerCandidate(task.task_id);
-    await writeFile(path.join(candidate.snapshot_path!, 'index.html'), 'tampered');
+    await writeFile(path.join(root, 'target/index.html'), 'tampered');
     const queued = service.evaluateCandidate(candidate.candidate_id, 'tamper');
     await service.runNext();
-    expect(service.getEvaluation(queued.evaluation_id!).error).toContain('snapshot_hash_mismatch');
+    expect(service.getEvaluation(queued.evaluation_id!).error).toContain(
+      'workspace_changed_during_evaluation',
+    );
   });
   it('exposes structured MCP responses, excludes owner creation and guards artifact paths', async () => {
     const server = createMcpServer(service),
@@ -218,18 +217,15 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     const { task, candidate, evaluation } = await evaluate('exact', { profile });
     expect(evaluation.report?.verdict).toBe('pass');
     expect(evaluation.report?.build_manifest_hash).toBeTruthy();
-    await writeFile(path.join(root, 'target/index.html'), 'user edits after passing capture');
     const final = await service.finalizeTask(task.task_id, candidate.candidate_id);
     expect(final.state).toBe('passed');
+    await writeFile(path.join(root, 'target/index.html'), 'user edits after passing capture');
     expect(await readFile(path.join(root, 'target/index.html'), 'utf8')).toBe(
       'user edits after passing capture',
     );
     expect(service.task(task.task_id).best_candidate).toBe(candidate.candidate_id);
     const other = await evaluate('exact', { profile });
-    await writeFile(
-      path.join(other.candidate.snapshot_path!, 'injected-build.js'),
-      'different delivered build',
-    );
+    await writeFile(path.join(root, 'target/injected-build.js'), 'different delivered build');
     await expect(
       service.finalizeTask(other.task.task_id, other.candidate.candidate_id),
     ).rejects.toThrow('build_artifact_hash_mismatch');
@@ -253,13 +249,13 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     ).toBe(2);
   });
   it('returns auth_required, build_failed and exhausted wall time with null scores', async () => {
-    const managed = config.target as Extract<TaskConfig['target'], { mode: 'managed' }>;
-    const auth = await evaluate('exact', { target: { ...managed, url_path: '/private' } });
+    const workspace = config.target as Extract<TaskConfig['target'], { mode: 'workspace' }>;
+    const auth = await evaluate('exact', { target: { ...workspace, url_path: '/private' } });
     expect(auth.evaluation.error).toContain('auth_required');
     expect(auth.evaluation.report?.score).toBeNull();
     const build = await evaluate('exact', {
       target: {
-        ...managed,
+        ...workspace,
         build: [{ executable: process.execPath, args: ['-e', 'process.exit(2)'] }],
       },
     });

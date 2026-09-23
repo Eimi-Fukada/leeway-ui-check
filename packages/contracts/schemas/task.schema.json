@@ -140,7 +140,7 @@
               "properties": {
                 "mode": {
                   "type": "string",
-                  "const": "managed"
+                  "const": "workspace"
                 },
                 "source_dir": {
                   "type": "string",

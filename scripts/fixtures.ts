@@ -48,7 +48,7 @@ export async function makeFixture(root: string) {
       confirmed: true,
     },
     target: {
-      mode: 'managed',
+      mode: 'workspace',
       source_dir: source,
       ready_selector: '[data-page-ready]',
       build: [],

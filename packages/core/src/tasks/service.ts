@@ -15,7 +15,7 @@ import { Store } from '../storage/database.js';
 import { ArtifactStore, hash, id } from '../storage/artifacts.js';
 import { normalizeImage, pixelCompare, regionPixels } from '../compare/images.js';
 import { ssim } from '../compare/ssim.js';
-import { snapshot, manifest } from '../candidates/snapshot.js';
+import { manifest } from '../workspace/manifest.js';
 import { launch, runCommand } from '../candidates/process.js';
 import { capture } from '../capture/runner.js';
 import { scoreReport } from '../scoring/evaluate.js';
@@ -80,7 +80,7 @@ export class TaskService {
   async createTask(input: unknown) {
     const config = TaskInput.parse(input);
     if (config.profile.status === 'retired') throw Error('profile_retired');
-    if (config.target.mode === 'managed')
+    if (config.target.mode === 'workspace')
       config.target.source_dir = path.resolve(config.target.source_dir);
     // Validation documents must already be imported by the owner into this store.
     if (config.profile.status === 'validated') {
@@ -195,11 +195,18 @@ export class TaskService {
     const target = task.config.target,
       candidateId = id('cand');
     let frozen: { entries: unknown[]; source_hash: string; asset_hash: string; build_hash: string };
-    let snapshotPath: string | null = null;
-    if (target.mode === 'managed') {
-      snapshotPath = path.join(this.root, 'snapshots', candidateId);
-      await mkdir(path.dirname(snapshotPath), { recursive: true });
-      frozen = await snapshot(target.source_dir, snapshotPath, this.root, target);
+    if (target.mode === 'workspace') {
+      const entries = await manifest(target.source_dir);
+      frozen = {
+        entries,
+        source_hash: hash(JSON.stringify(entries)),
+        asset_hash: hash(
+          JSON.stringify(
+            entries.filter((e) => target.asset_extensions.includes(path.extname(e.path))),
+          ),
+        ),
+        build_hash: hash(JSON.stringify(target)),
+      };
     } else
       frozen = {
         entries: [],
@@ -212,15 +219,15 @@ export class TaskService {
       if (terminal.has(current.state) || current.cancellation_requested_at)
         throw Error('task_not_accepting_candidates');
       this.store.run(
-        'INSERT INTO candidates(id,task_id,state,provenance,source_hash,asset_hash,build_hash,snapshot,manifest,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO candidates(id,task_id,state,provenance,source_hash,asset_hash,build_hash,workspace_path,manifest,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
         candidateId,
         taskId,
         'ready',
-        target.mode === 'managed' ? 'verified' : 'unverified',
+        target.mode === 'external' ? 'unverified' : 'workspace',
         frozen.source_hash,
         frozen.asset_hash,
         frozen.build_hash,
-        snapshotPath,
+        null,
         JSON.stringify(frozen.entries),
         Date.now(),
       );
@@ -231,9 +238,9 @@ export class TaskService {
     });
     return {
       candidate_id: candidateId,
-      provenance: target.mode === 'managed' ? 'verified' : 'unverified',
+      provenance: target.mode === 'external' ? 'unverified' : 'workspace',
       source_manifest_hash: frozen.source_hash,
-      snapshot_path: snapshotPath,
+      workspace_path: target.mode === 'workspace' ? target.source_dir : null,
     };
   }
   candidate(candidateId: string) {
@@ -372,7 +379,7 @@ export class TaskService {
       );
     const replay = existing();
     if (replay) return replay;
-    // Cross-process snapshot serialization. Never hold a SQLite transaction across file IO.
+    // Cross-process workspace serialization. Never hold a SQLite transaction across file IO.
     const parent = path.join(this.root, 'submission-locks');
     await mkdir(parent, { recursive: true });
     const lock = path.join(parent, taskId);
@@ -474,7 +481,15 @@ export class TaskService {
         task_id: taskId,
         state: 'passed',
         candidate_id: candidateId,
-        snapshot_path: candidate.snapshot,
+        workspace_path:
+          this.task(taskId).config.target.mode === 'workspace'
+            ? (
+                this.task(taskId).config.target as Extract<
+                  TaskConfig['target'],
+                  { mode: 'workspace' }
+                >
+              ).source_dir
+            : null,
       };
     if (terminal.has(t.state) || t.cancellation_requested_at) throw Error('task_terminal');
     if (
@@ -486,7 +501,7 @@ export class TaskService {
       throw Error('evaluation_conflict');
     if (
       candidate.task_id !== taskId ||
-      candidate.provenance !== 'verified' ||
+      candidate.provenance !== 'workspace' ||
       t.config.profile.status !== 'validated'
     )
       throw Error('candidate_not_deliverable');
@@ -498,12 +513,19 @@ export class TaskService {
     if (!e || Report.parse(JSON.parse(e.report)).verdict !== 'pass')
       throw Error('candidate_not_passed');
     const passing = Report.parse(JSON.parse(e.report));
+    const deliverySource =
+      t.config.target.mode === 'workspace'
+        ? t.config.target.mode === 'workspace'
+          ? t.config.target.source_dir
+          : ''
+        : null;
     if (
       !passing.build_manifest_hash ||
-      hash(JSON.stringify(await manifest(candidate.snapshot, true))) !== passing.build_manifest_hash
+      !deliverySource ||
+      hash(JSON.stringify(await manifest(deliverySource, true))) !== passing.build_manifest_hash
     )
       throw Error('build_artifact_hash_mismatch');
-    await this.verifySnapshot(candidate);
+    await this.verifyCandidateSource(candidate);
     this.store.transaction(() => {
       const current = this.task(taskId);
       if (current.cancellation_requested_at || terminal.has(current.state))
@@ -519,15 +541,22 @@ export class TaskService {
       task_id: taskId,
       state: 'passed',
       candidate_id: candidateId,
-      snapshot_path: candidate.snapshot,
+      workspace_path:
+        this.task(taskId).config.target.mode === 'workspace'
+          ? (
+              this.task(taskId).config.target as Extract<
+                TaskConfig['target'],
+                { mode: 'workspace' }
+              >
+            ).source_dir
+          : null,
     };
   }
-  async verifySnapshot(candidate: Record<string, any>) {
-    if (
-      candidate.snapshot &&
-      hash(JSON.stringify(await manifest(candidate.snapshot))) !== candidate.source_hash
-    )
-      throw Error('snapshot_hash_mismatch');
+  async verifyCandidateSource(candidate: Record<string, any>) {
+    const task = this.task(candidate.task_id);
+    const source = task.config.target.mode === 'workspace' ? task.config.target.source_dir : null;
+    if (source && hash(JSON.stringify(await manifest(source))) !== candidate.source_hash)
+      throw Error('workspace_changed_during_evaluation');
   }
   async runNext(signal?: AbortSignal) {
     const job = this.store.transaction(() => {
@@ -686,17 +715,17 @@ export class TaskService {
       task = this.task(base.task_id),
       config = task.config,
       candidate = this.candidate(base.candidate_id);
-    await this.verifySnapshot(candidate);
+    await this.verifyCandidateSource(candidate);
     let url = config.target.mode === 'external' ? config.target.url : '';
     let service: ReturnType<typeof launch> | undefined;
     let buildManifestHash: string | null = null;
     try {
-      if (config.target.mode === 'managed') {
+      if (config.target.mode === 'workspace') {
         state('capturing');
         this.store.run("UPDATE candidates SET state='building' WHERE id=?", candidate.id);
         for (const command of config.target.build) {
           try {
-            const result = await runCommand(command, candidate.snapshot, signal);
+            const result = await runCommand(command, config.target.source_dir, signal);
             const log = await this.artifact(result.stdout + '\n' + result.stderr, 'txt');
             this.store.event(task.id, 'build_log', {
               candidate_id: candidate.id,
@@ -706,10 +735,22 @@ export class TaskService {
             throw Error(`build_failed: ${error instanceof Error ? error.message : 'unknown'}`);
           }
         }
-        await this.verifySnapshot(candidate);
-        buildManifestHash = hash(JSON.stringify(await manifest(candidate.snapshot, true)));
+        await this.verifyCandidateSource(candidate);
+        buildManifestHash = hash(
+          JSON.stringify(
+            await manifest(
+              config.target.mode === 'workspace' ? config.target.source_dir : '',
+              true,
+            ),
+          ),
+        );
         const buildArtifact = await this.artifact(
-          JSON.stringify(await manifest(candidate.snapshot, true)),
+          JSON.stringify(
+            await manifest(
+              config.target.mode === 'workspace' ? config.target.source_dir : '',
+              true,
+            ),
+          ),
           'json',
         );
         this.store.event(task.id, 'build_frozen', {
@@ -726,7 +767,7 @@ export class TaskService {
             command.executable,
             ...command.args.map((a) => a.replaceAll('{port}', String(port))),
           ],
-          candidate.snapshot,
+          config.target.source_dir,
           signal,
           {
             PORT: String(port),
@@ -739,7 +780,7 @@ export class TaskService {
         const deadline = Date.now() + config.capture_timeout_ms;
         while (true) {
           signal.throwIfAborted();
-          if (service.child.exitCode !== null) throw Error('managed_server_exited');
+          if (service.child.exitCode !== null) throw Error('workspace_server_exited');
           try {
             const r = await fetch(url, {
               signal: AbortSignal.any([signal, AbortSignal.timeout(500)]),
@@ -763,11 +804,17 @@ export class TaskService {
         ]),
         () => state('testing'),
       );
-      if (service && service.child.exitCode !== null) throw Error('managed_server_exited');
-      await this.verifySnapshot(candidate);
+      if (service && service.child.exitCode !== null) throw Error('workspace_server_exited');
+      await this.verifyCandidateSource(candidate);
       if (
-        candidate.snapshot &&
-        hash(JSON.stringify(await manifest(candidate.snapshot, true))) !== buildManifestHash
+        hash(
+          JSON.stringify(
+            await manifest(
+              config.target.mode === 'workspace' ? config.target.source_dir : '',
+              true,
+            ),
+          ),
+        ) !== buildManifestHash
       )
         throw Error('build_artifact_changed_during_capture');
       state('comparing');
@@ -831,7 +878,7 @@ export class TaskService {
         issue.evidence_artifact_ids = [actual.artifact_id, diff.artifact_id, dom.artifact_id];
       return Report.parse(report);
     } catch (error) {
-      if (config.target.mode === 'managed')
+      if (config.target.mode === 'workspace')
         this.store.run("UPDATE candidates SET state='invalid' WHERE id=?", candidate.id);
       throw error;
     } finally {
