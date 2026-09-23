@@ -6,7 +6,402 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.0"
+          "enum": [
+            "1.0",
+            "1.1"
+          ]
+        },
+        "visual_feedback": {
+          "type": "object",
+          "properties": {
+            "feedback_version": {
+              "type": "string",
+              "const": "visual-feedback-v1"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "available",
+                "unavailable"
+              ]
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "regions_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "regions_omitted": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dom_truncated": {
+              "type": "boolean"
+            },
+            "regions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "difference_id": {
+                    "type": "string"
+                  },
+                  "bbox_px": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "y": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "width": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "height": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "width",
+                      "height"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "crop_bbox_px": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "y": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "width": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "height": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "width",
+                      "height"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "mismatched_pixels": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "evaluated_pixels": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "difference_ratio": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "observed": {
+                    "type": "string"
+                  },
+                  "crops": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "reference": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "actual": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "diff": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "reference",
+                          "actual",
+                          "diff"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "dom_candidates": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "selector": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "match_status": {
+                          "type": "string",
+                          "enum": [
+                            "unique",
+                            "unavailable"
+                          ]
+                        },
+                        "tag": {
+                          "type": "string"
+                        },
+                        "text_excerpt": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "bbox_px": {
+                          "type": "object",
+                          "properties": {
+                            "x": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "y": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "width": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0
+                            },
+                            "height": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "width",
+                            "height"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "full_bbox_px": {
+                          "type": "object",
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "width": {
+                              "type": "number",
+                              "exclusiveMinimum": 0
+                            },
+                            "height": {
+                              "type": "number",
+                              "exclusiveMinimum": 0
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "width",
+                            "height"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "actual_styles": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "region_coverage": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "association_method": {
+                          "type": "string",
+                          "const": "bbox_overlap"
+                        }
+                      },
+                      "required": [
+                        "selector",
+                        "match_status",
+                        "tag",
+                        "text_excerpt",
+                        "bbox_px",
+                        "actual_styles",
+                        "region_coverage",
+                        "association_method"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 3
+                  }
+                },
+                "required": [
+                  "difference_id",
+                  "bbox_px",
+                  "crop_bbox_px",
+                  "mismatched_pixels",
+                  "evaluated_pixels",
+                  "difference_ratio",
+                  "observed",
+                  "crops",
+                  "dom_candidates"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "comparison": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "previous_evaluation_id": {
+                      "type": "string"
+                    },
+                    "score_delta": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "difference_ratio_delta": {
+                      "type": "number"
+                    },
+                    "trend": {
+                      "type": "string",
+                      "enum": [
+                        "improved",
+                        "regressed",
+                        "unchanged"
+                      ]
+                    },
+                    "new_blockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "resolved_blockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "region_changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "new",
+                              "resolved",
+                              "persistent",
+                              "split",
+                              "merged",
+                              "reorganized"
+                            ]
+                          },
+                          "current_ids": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "previous_ids": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "difference_ratio_delta": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "current_ids",
+                          "previous_ids",
+                          "difference_ratio_delta"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "region_changes_omitted": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "default": 0
+                    }
+                  },
+                  "required": [
+                    "previous_evaluation_id",
+                    "score_delta",
+                    "difference_ratio_delta",
+                    "trend",
+                    "new_blockers",
+                    "resolved_blockers",
+                    "region_changes"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "comparison_unavailable_reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "feedback_version",
+            "status",
+            "reason",
+            "regions_total",
+            "regions_omitted",
+            "dom_truncated",
+            "regions",
+            "comparison",
+            "comparison_unavailable_reason"
+          ],
+          "additionalProperties": false
         },
         "task_id": {
           "type": "string",

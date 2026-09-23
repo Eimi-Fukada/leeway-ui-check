@@ -20,6 +20,11 @@ import { launch, runCommand } from '../candidates/process.js';
 import { capture } from '../capture/runner.js';
 import { scoreReport } from '../scoring/evaluate.js';
 import { sandboxEnvironment } from '../sandbox/policy.js';
+import {
+  buildFeedback,
+  summarizeFeedback,
+  unavailableFeedback,
+} from '../regions/visual-feedback.js';
 
 const terminal = new Set(['passed', 'cancelled', 'failed', 'budget_exhausted', 'stalled']);
 type TaskRow = {
@@ -442,7 +447,7 @@ export class TaskService {
     if (requestId && !row) throw Error('request_not_found');
     const report = row?.report ? Report.parse(JSON.parse(row.report)) : null;
     const processing = row && ['queued', 'capturing', 'comparing', 'testing'].includes(row.state);
-    return {
+    const result = {
       run_id: taskId,
       task_state: task.state,
       request_id: row?.request_id ?? null,
@@ -450,8 +455,17 @@ export class TaskService {
       score: report?.score ?? null,
       verdict: report?.verdict ?? null,
       blockers: report?.blockers ?? [],
-      issues: report?.issues ?? [],
+      issues: (report?.issues ?? []).slice(0, 8).map((issue) => ({
+        ...issue,
+        observed: issue.observed.slice(0, 600),
+        suggestion: issue.suggestion.slice(0, 600),
+      })),
+      issues_omitted: Math.max(0, (report?.issues.length ?? 0) - 8),
+      blockers_omitted: 0,
       components: report?.components ?? null,
+      schema_version: report?.schema_version ?? '1.1',
+      visual_feedback: report?.visual_feedback ? summarizeFeedback(report.visual_feedback) : null,
+      full_report: row ? `harness://evaluations/${row.id}` : null,
       budget_remaining: this.remaining(taskId),
       artifacts: report
         ? Object.fromEntries(
@@ -472,6 +486,23 @@ export class TaskService {
                 ? 'review_configuration'
                 : (report?.next_action ?? 'submit'),
     };
+    // Preserve bounded transport even when page text/selectors or failure logs are unusually large.
+    while (Buffer.byteLength(JSON.stringify(result)) > 32768) {
+      if (result.issues.length) {
+        result.issues.pop();
+        result.issues_omitted++;
+      } else if (result.visual_feedback?.regions.length) {
+        result.visual_feedback.regions.pop();
+        result.visual_feedback.regions_omitted++;
+      } else if (result.visual_feedback?.comparison) {
+        result.visual_feedback.comparison = null;
+        result.visual_feedback.comparison_unavailable_reason = 'summary_size_limit';
+      } else if (result.blockers.length) {
+        result.blockers = result.blockers.slice(0, -1);
+        result.blockers_omitted++;
+      } else break;
+    }
+    return result;
   }
   async finalizeTask(taskId: string, candidateId: string) {
     const t = this.task(taskId),
@@ -685,6 +716,8 @@ export class TaskService {
   private failureReport(evaluationId: string, error: string): EvaluationReport {
     return Report.parse({
       ...this.base(evaluationId),
+      schema_version: '1.1',
+      visual_feedback: unavailableFeedback('evaluation_failed'),
       status: error === 'cancelled' ? 'cancelled' : 'failed',
       verdict: 'review_required',
       score: null,
@@ -876,6 +909,35 @@ export class TaskService {
       }
       for (const issue of report.issues)
         issue.evidence_artifact_ids = [actual.artifact_id, diff.artifact_id, dom.artifact_id];
+      const previousRow = this.store.get(
+        "SELECT report FROM evaluations WHERE task_id=? AND state='completed' AND id<>? ORDER BY created_at DESC,rowid DESC LIMIT 1",
+        task.id,
+        evaluationId,
+      );
+      let previous:
+        | { report: EvaluationReport; actual: Awaited<ReturnType<typeof normalizeImage>> }
+        | undefined;
+      if (previousRow) {
+        const older = Report.parse(JSON.parse(previousRow.report));
+        if (older.artifacts.actual)
+          previous = {
+            report: older,
+            actual: await normalizeImage(
+              await this.artifacts.read(this.getArtifact(older.artifacts.actual)),
+            ),
+          };
+      }
+      report.schema_version = '1.1';
+      report.visual_feedback = await buildFeedback({
+        reference: refImage,
+        actual: actualImage,
+        pixels,
+        config,
+        report,
+        dom: captured.dom_evidence,
+        previous,
+        put: async (bytes) => (await this.artifact(bytes, 'png')).artifact_id,
+      });
       return Report.parse(report);
     } catch (error) {
       if (config.target.mode === 'workspace')

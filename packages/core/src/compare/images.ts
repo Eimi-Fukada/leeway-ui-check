@@ -76,6 +76,20 @@ export function pixelCompare(
   };
   const mismatched = count(diff),
     strictCount = count(strict);
+  const binaryOutput = Buffer.alloc(a.length);
+  pixelmatch(a, b, binaryOutput, width, height, {
+    threshold: profile.pixel.threshold,
+    includeAA: profile.pixel.include_aa,
+    diffMask: true,
+  });
+  const differences = new Uint8Array(width * height);
+  let binaryCount = 0;
+  for (let i = 0; i < differences.length; i++)
+    if (!mask[i] && binaryOutput[i * 4 + 3] !== 0) {
+      differences[i] = 1;
+      binaryCount++;
+    }
+  if (binaryCount !== mismatched) throw Error('difference_mask_count_mismatch');
   return {
     diff,
     strict,
@@ -85,6 +99,7 @@ export function pixelCompare(
     difference_ratio: mismatched / evaluated,
     mask_coverage: excluded / (width * height),
     mask,
+    differences,
   };
 }
 export function regionPixels(

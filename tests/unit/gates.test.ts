@@ -91,6 +91,7 @@ function score(c: TaskConfig, ratio = 0) {
     },
     {
       diff: Buffer.alloc(0),
+      differences: new Uint8Array(),
       strict: Buffer.alloc(0),
       mask: new Uint8Array(),
       mismatched_pixels: 0,

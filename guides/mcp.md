@@ -50,3 +50,11 @@ run_id 就是 task_id。MCP 内部 worker 会继续执行。提交等待时间�
 ## 迁移
 
 `ui_check_start` 现在从参考图和项目目录创建任务；`ui_check_submit` 统一负责提交和短暂等待；MCP 进程内部管理 worker。旧客户端需要刷新工具列表。
+
+## 视觉反馈（报告1.1）
+
+submit/status现在返回visual_feedback。regions包含差异bbox、差异比例、crops参考/当前/差异图资源URI、dom_candidates及实际样式；comparison包含与上一轮的分数/差异比例变化、阻断变化及区域分裂/合并。参考CSS不会被猜测成事实。
+
+请让Agent实际读取crops中的图像资源再分析。仅看到URI不代表已经看图。无法读取资源时应说明宿主限制，不虚构视觉判断。JSON摘要最多32KB，省略量通过issues_omitted、blockers_omitted、regions_omitted、region_changes_omitted说明。full_report给出 `harness://evaluations/{evaluation_id}`，可读取完整持久报告；完整报告内裁剪图为artifact ID。
+
+旧1.0报告仍然可读，visual_feedback为null；新评测失败时返回unavailable，不伪造差异区域。

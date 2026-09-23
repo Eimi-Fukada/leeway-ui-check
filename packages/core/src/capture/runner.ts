@@ -5,6 +5,8 @@ import { normalizeImage } from '../compare/images.js';
 import { hash } from '../storage/artifacts.js';
 import type { TaskConfig, Bbox } from '../../../contracts/src/index.js';
 import { responsiveProbe } from './responsive.js';
+import { collectDOM } from '../regions/dom-evidence.js';
+import type { DOMEvidence } from '../../../contracts/src/feedback.js';
 export type DOMRegion = {
   region_id: string;
   selector: string;
@@ -18,6 +20,7 @@ export type DOMRegion = {
   role: string | null;
 };
 export type CaptureResult = {
+  dom_evidence?: { elements: DOMEvidence[]; truncated: boolean };
   png: Buffer;
   regions: DOMRegion[];
   runtime: string[];
@@ -227,6 +230,15 @@ export async function capture(
       });
     }
     if (config.reference.crop) png = (await normalizeImage(png, config.reference.crop)).png;
+    const shotInfo = await normalizeImage(png);
+    const domEvidence = await collectDOM(
+      page,
+      config.reference.device_scale_factor,
+      origin,
+      config.reference.crop,
+      shotInfo.width,
+      shotInfo.height,
+    );
     onTesting();
     const checks: CaptureResult['checks'] = [];
     for (const check of config.required_checks) {
@@ -261,6 +273,7 @@ export async function capture(
       checks,
       stability_ratio: ratio,
       component_origin: origin,
+      dom_evidence: domEvidence,
       responsive: await responsiveProbe(config, url, signal),
     };
   } finally {

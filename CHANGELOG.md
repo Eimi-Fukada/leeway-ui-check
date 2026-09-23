@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 新增报告1.1视觉反馈：二值差异掩码、区域与成对裁剪图、运行时DOM/样式关联、前后轮趋势和区域分裂/合并。旧1.0报告保留读取兼容。
+- MCP摘要限制32KB并支持完整报告资源；报告页新增局部对照与DOM证据。评分参数和Gate不变。
+
 - 默认MCP收敛到start、submit、status、cancel、finalize五个工具；底层与配置工具仅owner模式可用。
 - 移除ui_check_submit_and_wait工具；submit增加wait_ms（0–30000），超时返回running，由独立worker继续执行。
 - 提交按task/request复用已有结果，增加跨进程快照串行锁；异常锁恢复见FAQ。

@@ -567,3 +567,36 @@ header p {
     padding: 16px;
   }
 }
+.crop-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.crop-grid figure {
+  margin: 0;
+  min-width: 0;
+}
+.crop-grid img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #dce4d7;
+}
+.crop-grid figcaption {
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.finding pre {
+  overflow: auto;
+  font-size: 11px;
+  max-height: 220px;
+}
+.finding details {
+  font-size: 12px;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 680px) {
+  .crop-grid {
+    grid-template-columns: 1fr;
+  }
+}

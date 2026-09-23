@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { VisualFeedback } from './feedback.js';
 
 export const Id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 export const Hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -284,7 +285,8 @@ export const RegionPixelMetric = z
   .strict();
 export const Report = z
   .object({
-    schema_version: z.literal('1.0'),
+    schema_version: z.enum(['1.0', '1.1']),
+    visual_feedback: VisualFeedback.optional(),
     task_id: Id,
     evaluation_id: Id,
     candidate_id: Id,
@@ -342,6 +344,10 @@ export const Report = z
   })
   .strict()
   .superRefine((r, c) => {
+    if (r.schema_version === '1.0' && r.visual_feedback)
+      c.addIssue({ code: 'custom', message: 'visual feedback requires report 1.1' });
+    if (r.schema_version === '1.1' && !r.visual_feedback)
+      c.addIssue({ code: 'custom', message: 'report 1.1 requires visual feedback' });
     if (r.score && (!r.components || !r.metrics))
       c.addIssue({ code: 'custom', message: 'score requires components and metrics' });
     if (r.status !== 'completed' && r.score)

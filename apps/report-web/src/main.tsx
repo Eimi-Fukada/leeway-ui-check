@@ -278,6 +278,69 @@ function App() {
                 </div>
               </section>
             </div>
+            {report?.visual_feedback && (
+              <section className="history">
+                <div className="section-title">
+                  <h2>差异区域与实际元素</h2>
+                  <span>{report.visual_feedback.regions_total} 个区域</span>
+                </div>
+                <p className="muted">
+                  区域表示像素差异范围；DOM 与样式是实现侧证据，不代表错误根因。
+                </p>
+                {report.visual_feedback.comparison ? (
+                  <p>
+                    与上一轮相比：差异像素比例变化{' '}
+                    {(report.visual_feedback.comparison.difference_ratio_delta * 100).toFixed(2)}{' '}
+                    个百分点；评分变化{' '}
+                    {report.visual_feedback.comparison.score_delta?.toFixed(2) ?? '不可比较'}。
+                  </p>
+                ) : (
+                  <p className="muted">
+                    暂无可比较趋势：{report.visual_feedback.comparison_unavailable_reason}
+                  </p>
+                )}
+                {report.visual_feedback.regions.slice(0, 5).map((region) => (
+                  <article className="finding" key={region.difference_id}>
+                    <h3>
+                      {region.difference_id} · {region.observed}
+                    </h3>
+                    <p>
+                      位置 ({region.bbox_px.x}, {region.bbox_px.y})，{region.bbox_px.width} ×{' '}
+                      {region.bbox_px.height}px，差异 {(region.difference_ratio * 100).toFixed(2)}%
+                    </p>
+                    {region.crops && (
+                      <div className="crop-grid">
+                        {(['reference', 'actual', 'diff'] as const).map((key, i) => (
+                          <figure key={key}>
+                            <figcaption>{['参考区域', '当前区域', '区域差异'][i]}</figcaption>
+                            <a href={imageUrl(region.crops![key])} target="_blank" rel="noreferrer">
+                              <img
+                                loading="lazy"
+                                alt={`${region.difference_id} ${key}`}
+                                src={imageUrl(region.crops![key])}
+                              />
+                            </a>
+                          </figure>
+                        ))}
+                      </div>
+                    )}
+                    {region.dom_candidates.map((element, i) => (
+                      <details key={i}>
+                        <summary>
+                          {element.selector ?? element.tag} · 区域覆盖{' '}
+                          {(element.region_coverage * 100).toFixed(0)}%
+                        </summary>
+                        <p>{element.text_excerpt}</p>
+                        <pre>{JSON.stringify(element.actual_styles, null, 2)}</pre>
+                      </details>
+                    ))}
+                  </article>
+                ))}
+                {report.visual_feedback.regions_total > 5 && (
+                  <p className="muted">其余区域保存在完整报告中。</p>
+                )}
+              </section>
+            )}
             <section className="history">
               <div className="section-title">
                 <h2>候选历史</h2>

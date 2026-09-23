@@ -15,6 +15,7 @@
 ## 能做什么
 
 - 对照参考图和页面截图，查看普通、严格差异图与区域问题。
+- 无需手工标注即可获得主要差异区域、局部对照图、实际DOM/样式候选及上一轮变化；由编码Agent判断修改原因。
 - 将文字、几何、交互及资源错误作为独立阻断条件。
 - 通过五个 MCP 工具提交代码版本、查询反馈、取消和交付。
 - 保存每轮源码 manifest、报告和证据；交付前复核当前工作区版本。
@@ -62,6 +63,7 @@ Harness 不自动猜测按钮的业务行为。需要检查的交互须写入任
 - [MCP 接入](guides/mcp.md)：工具、参数、Agent 指令与接口迁移。
 - [常见问题](guides/faq.md)：100 分未通过、Python、重复提交与错误恢复。
 - [架构](guides/project-tour.md)：模块职责和实际执行链路。
+- [视觉反馈设计](guides/visual-feedback-design.md)：差异区域、局部对照图、DOM关联与轮次变化的规则和实现边界。
 - [评分校准](evals/calibration/README.md)：权重、证据和正式验收。
 - [更新记录](CHANGELOG.md) · [贡献指南](CONTRIBUTING.md) · [安全边界](SECURITY.md)。
 

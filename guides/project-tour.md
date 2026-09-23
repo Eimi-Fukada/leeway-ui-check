@@ -2,6 +2,8 @@
 
 本页说明当前实现。安装和操作见 [使用指南](usage.md)。
 
+反馈规则与实现边界见 [视觉反馈设计](visual-feedback-design.md)。它已接入差异定位、局部图像、DOM关联与前后轮比较；不改变现有评分Gate。
+
 ```text
 CLI / MCP → TaskService → 工作区 manifest → SQLite评测队列
                                       ↓ 独立worker领取
@@ -18,7 +20,8 @@ Task 是固定要求的一次任务；Candidate 是某一轮源码 manifest；Ev
 | packages/mcp/src/server.ts                  | Agent五工具与owner十工具、资源读取；提交只等待，不执行队列        |
 | packages/contracts/src/index.ts             | Zod运行时合同、类型、默认配置                                     |
 | packages/core/src/tasks/service.ts          | 创建任务、工作区版本登记、去重、队列租约、单轮评测、取消和交付    |
-| packages/core/src/candidates                | 文件清单/hash、复制副本、受管进程及清理                           |
+| packages/core/src/candidates                | 受管进程启动、日志及进程树清理                                    |
+| packages/core/src/workspace/manifest.ts     | 记录工作区文件清单/hash，不复制源码                               |
 | packages/core/src/capture                   | 截图稳定性、标注DOM数据、交互、基础响应式探测                     |
 | packages/core/src/compare                   | sharp/pixelmatch、Python SSIM调用                                 |
 | packages/core/src/scoring                   | 几何与文字计算、四项加权、阻断；关键区域像素阻断还在TaskService中 |

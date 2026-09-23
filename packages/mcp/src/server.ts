@@ -260,6 +260,20 @@ export function createMcpServer(service: TaskService, owner = false) {
     );
   }
   server.registerResource(
+    'evaluation-report',
+    new ResourceTemplate('harness://evaluations/{evaluation_id}', { list: undefined }),
+    { description: 'Complete persisted evaluation report including visual evidence' },
+    async (uri, { evaluation_id }) => ({
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify(service.getEvaluation(Id.parse(evaluation_id))),
+        },
+      ],
+    }),
+  );
+  server.registerResource(
     'artifact',
     new ResourceTemplate('harness://artifacts/{artifact_id}', { list: undefined }),
     { description: 'Immutable capture, diff or JSON report' },
