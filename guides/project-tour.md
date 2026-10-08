@@ -5,8 +5,8 @@
 反馈规则与实现边界见 [视觉反馈设计](visual-feedback-design.md)。它已接入差异定位、局部图像、DOM关联与前后轮比较；不改变现有评分Gate。
 
 ```text
-CLI / MCP → TaskService → 工作区 manifest → SQLite评测队列
-                                      ↓ 独立worker领取
+CLI / MCP → UiWorkflow → TaskService → 工作区 manifest → SQLite评测队列
+                                      ↓ 内置/独立worker领取
 构建并启动 → Playwright截图/DOM/交互 → 像素/SSIM/布局/文字
                                       ↓
                         Report + ArtifactStore → Agent读取后修改源码
@@ -17,7 +17,9 @@ Task 是固定要求的一次任务；Candidate 是某一轮源码 manifest；Ev
 | 文件或目录                                  | 职责                                                              |
 | ------------------------------------------- | ----------------------------------------------------------------- |
 | packages/cli/src/index.ts                   | 终端命令入口、worker循环、报告服务入口                            |
-| packages/mcp/src/server.ts                  | Agent五工具与owner十工具、资源读取；提交只等待，不执行队列        |
+| packages/mcp/src/server.ts                  | 五个共享门面的MCP适配、输出Schema、资源读取                       |
+| packages/core/src/workflow                  | 五操作合同、instructions、共享门面和worker循环                    |
+| packages/codex/src                          | 聊天绑定、Stop/Interrupt回调、项目级hook安装                      |
 | packages/contracts/src/index.ts             | Zod运行时合同、类型、默认配置                                     |
 | packages/core/src/tasks/service.ts          | 创建任务、工作区版本登记、去重、队列租约、单轮评测、取消和交付    |
 | packages/core/src/candidates                | 受管进程启动、日志及进程树清理                                    |

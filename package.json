@@ -20,7 +20,8 @@
     "format:check": "prettier --check .",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "test:e2e": "vitest run tests/e2e"
+    "test:e2e": "vitest run tests/e2e",
+    "setup:codex": "tsx scripts/setup-codex.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.17.4",

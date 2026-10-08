@@ -16,6 +16,6 @@
 
 ## 接入自己的页面
 
-[task.template.json](task.template.json) 是独立完整模板，不依赖先运行Demo。替换所有REPLACE\_值及页面相关区域/文字/交互后，用CLI create-task创建新任务。它假设你的页面由Node server.mjs通过PORT环境变量启动；不同框架需按真实构建/启动方式修改target。
+[task.template.json](task.template.json) 是内部 TaskInput 的完整参考，不依赖先运行 Demo。公开 CLI/MCP 统一使用 ui_check_start，输入示例见 [使用指南](../guides/usage.md)；不要将完整内部模板直接作为 start 输入。按真实项目提供源码目录、viewport、serve/build 和区域/交互要求。
 
 截图本身不能确定真实DOM和交互，模板不会自动恢复这些信息。完整说明见 [使用指南](../guides/usage.md)。

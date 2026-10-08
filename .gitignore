@@ -6,4 +6,5 @@ dist/
 coverage/
 *.log
 .env*
+.codex/hooks.json
 docs/*

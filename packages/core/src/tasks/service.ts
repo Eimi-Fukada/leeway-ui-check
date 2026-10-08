@@ -450,6 +450,25 @@ export class TaskService {
     const result = {
       run_id: taskId,
       task_state: task.state,
+      task_status: terminal.has(task.state)
+        ? task.state
+        : task.cancellation_requested_at
+          ? 'blocked'
+          : processing
+            ? 'evaluating'
+            : report?.verdict === 'pass'
+              ? 'ready_to_finalize'
+              : report?.next_action === 'review_configuration' ||
+                  (report?.blockers.includes('profile_not_validated') &&
+                    report.blockers.length === 1)
+                ? 'blocked'
+                : report?.verdict === 'needs_revision'
+                  ? 'needs_revision'
+                  : report
+                    ? 'blocked'
+                    : 'created',
+      task_terminal: terminal.has(task.state),
+      evaluation_status: row?.state ?? null,
       request_id: row?.request_id ?? null,
       status: processing ? 'running' : (row?.state ?? task.state),
       score: report?.score ?? null,

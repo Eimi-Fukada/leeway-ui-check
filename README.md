@@ -47,9 +47,9 @@ npm run cli -- report
 
 ## 用在你的项目里
 
-1. 从 [完整任务模板](examples/task.template.json) 配置参考图、视口、源码目录和启动命令。
-2. 按 [使用指南](guides/usage.md) 创建任务并启动 worker。
-3. 按 [MCP 指南](guides/mcp.md) 连接编码 Agent，提交并读取反馈。
+1. 按 [MCP 指南](guides/mcp.md) 连接编码 Agent；MCP 自带 worker。
+2. 使用 ui_check_start 提交参考图、视口、源码目录和启动命令。CLI 使用同名操作及相同 JSON。
+3. 可安装项目级 Skill 与 Codex Stop hook，未达标且预算可用时自动要求继续修复。
 
 ```text
 Agent 修改源码 → submit → worker 截图与比较 → 报告 → Agent 再次修改

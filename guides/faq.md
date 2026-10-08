@@ -4,7 +4,7 @@
 
 **为什么需要Python？** SSIM使用scikit-image；Node负责浏览器、图像预处理、队列与协议。
 
-**提交一直running？** 检查独立worker是否运行，以及它与MCP是否使用同一个HARNESS_HOME。等待超时不是执行失败。
+**提交一直running？** MCP 内置 worker，检查连接进程日志；独立 worker、CLI 和 hook 必须使用同一个 HARNESS_HOME。等待超时不是执行失败。
 
 **调用超时后怎么办？** 查询原request_id或原样重试提交。只有源码产生新版本才换request_id。
 

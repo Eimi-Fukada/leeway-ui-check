@@ -1,27 +1,20 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { TaskService } from '../../core/src/tasks/service.js';
+import { runWorker } from '../../core/src/workflow/worker.js';
 import { createMcpServer } from './server.js';
-import { setTimeout as delay } from 'node:timers/promises';
+if (process.argv.includes('--owner'))
+  throw Error('--owner was removed; use the five ui_check tools');
 const service = new TaskService();
-const server = createMcpServer(service, process.argv.includes('--owner'));
+const server = createMcpServer(service);
+const abort = new AbortController();
+process.once('SIGINT', () => abort.abort());
+process.once('SIGTERM', () => abort.abort());
 await server.connect(new StdioServerTransport());
+server.server.onclose = () => abort.abort();
 console.error('Leeway MCP connected. The MCP process owns the local evaluation worker.');
-let stopping = false;
-const stop = () => {
-  stopping = true;
+try {
+  await runWorker(service, abort.signal);
+} finally {
+  await server.close();
   service.close();
-};
-process.once('SIGINT', stop);
-process.once('SIGTERM', stop);
-void (async () => {
-  while (!stopping) {
-    try {
-      const worked = await service.runNext();
-      if (!worked) await delay(250);
-    } catch (error) {
-      if (!stopping)
-        console.error(`Worker error: ${error instanceof Error ? error.message : 'unknown'}`);
-      await delay(500);
-    }
-  }
-})();
+}

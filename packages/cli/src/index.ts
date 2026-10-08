@@ -1,100 +1,62 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { setTimeout as delay } from 'node:timers/promises';
+import { readFile } from 'node:fs/promises';
 import { TaskService } from '../../core/src/tasks/service.js';
-import {
-  AdapterConfig,
-  CommandAgentAdapter,
-  runController,
-} from '../../core/src/controller/loop.js';
+import { UiWorkflow, toolDefinitions } from '../../core/src/workflow/facade.js';
+import { runWorker } from '../../core/src/workflow/worker.js';
 import { startReportServer } from '../../core/src/reports/server.js';
-const [command, ...args] = process.argv.slice(2),
-  service = new TaskService();
-const readJson = async (file: string) => JSON.parse(await readFile(file, 'utf8'));
+const [command, ...args] = process.argv.slice(2);
 const abort = new AbortController();
 process.once('SIGINT', () => abort.abort());
 process.once('SIGTERM', () => abort.abort());
+const service = new TaskService();
+let worker: Promise<void> | undefined;
 try {
   let output: unknown;
-  switch (command) {
-    case 'create-task':
-      output = await service.createTask(await readJson(args[0]));
-      break;
-    case 'register-candidate':
-      output = await service.registerCandidate(args[0]);
-      break;
-    case 'evaluate-candidate':
-      output = service.evaluateCandidate(args[0], args[1]);
-      break;
-    case 'get-evaluation':
-      output = service.getEvaluation(args[0]);
-      break;
-    case 'get-task-status':
-      output = service.getTaskStatus(args[0]);
-      break;
-    case 'finalize-task':
-      output = await service.finalizeTask(args[0], args[1]);
-      break;
-    case 'cancel-task':
-      output = service.cancelTask(args[0]);
-      break;
-    case 'get-artifact': {
-      const a = service.getArtifact(args[0]);
-      if (args[1]) await writeFile(args[1], await service.artifacts.read(a));
-      output = { artifact_id: args[0], sha256: a.sha256, path: args[1] ?? a.path };
-      break;
+  if (Object.hasOwn(toolDefinitions, command ?? '')) {
+    if (!args[0]) throw Error('expected_input_json_file_or_dash_for_stdin');
+    let text = '';
+    if (args[0] === '-') for await (const chunk of process.stdin) text += chunk;
+    else text = await readFile(args[0], 'utf8');
+    if (command === 'ui_check_submit') worker = runWorker(service, abort.signal);
+    output = await new UiWorkflow(service).call(command, JSON.parse(text));
+    // A one-shot CLI must finish its owned work before exiting. MCP instead stays connected.
+    if (command === 'ui_check_submit') {
+      const first = output as { run_id: string; request_id: string };
+      while (
+        !abort.signal.aborted &&
+        service.agentStatus(first.run_id, first.request_id).task_status === 'evaluating'
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      output = service.agentStatus(first.run_id, first.request_id);
     }
-    case 'import-evidence':
-      output = await service.artifact(JSON.stringify(await readJson(args[0])), 'json');
-      break;
-    case 'controller':
-      output = await runController(
-        service,
-        args[0],
-        new CommandAgentAdapter(AdapterConfig.parse(await readJson(args[1]))),
-        abort.signal,
-      );
-      break;
-    case 'worker':
-      do {
-        const worked = await service.runNext(abort.signal);
-        if (args.includes('--once')) break;
-        if (!worked) await delay(250, undefined, { signal: abort.signal });
-      } while (!abort.signal.aborted);
-      output = { state: 'worker_stopped' };
-      break;
-    case 'report': {
-      const server = await startReportServer(service, Number(args[0] ?? 4318));
-      console.error(`Report: ${server.url}`);
-      await new Promise<void>((resolve) =>
-        abort.signal.addEventListener(
-          'abort',
-          () => {
-            server.server.close(() => resolve());
-          },
-          { once: true },
-        ),
-      );
-      break;
-    }
-    default:
-      output = {
-        usage: [
-          'create-task <config.json>',
-          'register-candidate <task_id>',
-          'evaluate-candidate <candidate_id> <request_id>',
-          'worker [--once]',
-          'get-evaluation <evaluation_id>',
-          'get-task-status <task_id>',
-          'get-artifact <artifact_id> [output]',
-          'cancel-task <task_id>',
-          'finalize-task <task_id> <candidate_id>',
-          'import-evidence <json>',
-          'controller <task_id> <adapter.json>',
-          'report [port]',
-        ],
-        store: service.root,
-      };
-  }
+  } else if (command === 'import-evidence') {
+    if (!args[0]) throw Error('expected_evidence_json_file');
+    output = await service.artifact(
+      JSON.stringify(JSON.parse(await readFile(args[0], 'utf8'))),
+      'json',
+    );
+  } else if (command === 'worker') {
+    await runWorker(service, abort.signal, args.includes('--once'));
+    output = { state: 'worker_stopped' };
+  } else if (command === 'report') {
+    const server = await startReportServer(service, Number(args[0] ?? 4318));
+    console.error(`Report: ${server.url}`);
+    await new Promise<void>((resolve) => {
+      const close = () => server.server.close(() => resolve());
+      if (abort.signal.aborted) close();
+      else abort.signal.addEventListener('abort', close, { once: true });
+    });
+  } else if (!command || command === 'help') {
+    output = {
+      usage: [
+        ...Object.keys(toolDefinitions).map((name) => `${name} <input.json | ->`),
+        'worker [--once]',
+        'report [port]',
+        'import-evidence <evidence.json> (calibration maintenance)',
+      ],
+      store: service.root,
+    };
+  } else throw Error(`unknown_command:${command}; use help for the shared five-tool workflow`);
   if (output !== undefined) console.log(JSON.stringify(output, null, 2));
 } catch (error) {
   if (!abort.signal.aborted) {
@@ -104,5 +66,7 @@ try {
     process.exitCode = 1;
   }
 } finally {
+  abort.abort();
+  await worker;
   service.close();
 }

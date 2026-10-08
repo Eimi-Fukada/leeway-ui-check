@@ -45,40 +45,33 @@ it('serializes workspace submissions, replays requests, waits without consuming 
     service.close();
   }
 });
-it('exposes exactly five agent tools and ten owner tools, with no submit_and_wait alias', async () => {
+it('exposes exactly five tools with output schemas and workflow instructions', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'leeway-tools-'));
-  const service = new TaskService(root);
+  const service = new TaskService(root),
+    server = createMcpServer(service),
+    client = new Client({ name: 'test', version: '1' }),
+    [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(a);
+  await client.connect(b);
   try {
-    for (const owner of [false, true]) {
-      const server = createMcpServer(service, owner),
-        client = new Client({ name: 'test', version: '1' }),
-        [a, b] = InMemoryTransport.createLinkedPair();
-      await server.connect(a);
-      await client.connect(b);
-      try {
-        const names = (await client.listTools()).tools.map((t) => t.name);
-        expect(names).not.toContain('ui_check_submit_and_wait');
-        if (!owner)
-          expect(names.sort()).toEqual(
-            [
-              'ui_check_start',
-              'ui_check_submit',
-              'ui_check_status',
-              'ui_check_cancel',
-              'ui_check_finalize',
-            ].sort(),
-          );
-        else {
-          expect(names).toHaveLength(10);
-          expect(names).toContain('create_task');
-          expect(names).not.toContain('ui_check_submit');
-        }
-      } finally {
-        await client.close();
-        await server.close();
-      }
-    }
+    const tools = (await client.listTools()).tools;
+    expect(tools.map((t) => t.name).sort()).toEqual(
+      [
+        'ui_check_start',
+        'ui_check_submit',
+        'ui_check_status',
+        'ui_check_cancel',
+        'ui_check_finalize',
+      ].sort(),
+    );
+    expect(tools.every((t) => t.outputSchema?.properties?.task_status)).toBe(true);
+    expect(client.getInstructions()).toContain('without asking the user to continue');
+    await expect(client.callTool({ name: 'create_task', arguments: {} })).rejects.toThrow(
+      'not found',
+    );
   } finally {
+    await client.close();
+    await server.close();
     service.close();
   }
 });

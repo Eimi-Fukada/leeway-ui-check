@@ -1,12 +1,22 @@
 # Agent / MCP 接入
 
-## 启动方式
+## 统一五个工具
 
-安装依赖后，在独立终端执行 `npm run worker`。MCP 仅提交与查询，不执行队列；宿主负责启动 stdio MCP 进程。CLI、worker 和 MCP 必须使用同一个 HARNESS_HOME（默认用户目录的 `.leeway-ui-check`）。
+GUI/TUI、MCP/CLI 共用 UiWorkflow 输入校验和输出合同。
 
-`ui_check_start` 会创建任务。你需要提供参考截图路径、目标源码目录、viewport 和启动命令；返回的 `run_id` 用于后续提交。
+| 工具              | 输入                                                                                                               | 行为                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| ui_check_start    | reference_image_path、source_dir、viewport_width/height、serve；可选 regions/required_checks/responsive/profile_id | 创建并冻结要求                     |
+| ui_check_submit   | run_id、request_id、wait_ms（默认10000，上限30000）                                                                | 提交当前版本并等待评测，不代表完成 |
+| ui_check_status   | run_id、request_id（可选）                                                                                         | 查询状态、证据和下一步             |
+| ui_check_cancel   | run_id                                                                                                             | 请求取消并等待清理                 |
+| ui_check_finalize | run_id                                                                                                             | 复核最新通过版本，成功才完成       |
 
-支持通用 mcpServers JSON 格式的宿主可使用下面的示例。将 `<HARNESS_DIR>` 替换为本仓库绝对路径，`<DATA_DIR>` 替换为数据目录；node 必须在宿主 PATH 中，否则使用其绝对路径。
+--owner 与十个底层 MCP 工具已删除。Candidate/Evaluation/Artifact 仍是内部对象；图片和报告通过 resources 读取。
+
+## 连接
+
+MCP 内置 worker，无需另开 npm run worker。hook 要求宿主服务名为 leeway-ui-check。
 
 ```json
 {
@@ -23,38 +33,42 @@
 }
 ```
 
-不同宿主的配置文件格式不同，以上不是所有客户端通用的配置文件。连接参数始终是 executable、args、env。项目不自动修改宿主配置。
+替换为绝对路径；不同宿主配置格式可能不同。当前 start 仍是 workspace 模式，需要源码目录与启动命令，此次未改为 URL 模式。内置 Playwright，无需 Codex 另装 Playwright MCP。
 
-## 默认工具：五个
+## 状态和持续修复
 
-| 工具              | 参数                                                | 行为                                     |
-| ----------------- | --------------------------------------------------- | ---------------------------------------- |
-| ui_check_start    | task_id                                             | 打开已有任务，返回要求和当前状态         |
-| ui_check_submit   | run_id, request_id, wait_ms（默认10000，上限30000） | 冻结并排队；限时等待；未完成返回 running |
-| ui_check_status   | run_id, request_id（可选）                          | 查询指定提交或最新提交的精简反馈         |
-| ui_check_cancel   | run_id                                              | 请求取消；进程清理结束前不保证已取消     |
-| ui_check_finalize | run_id                                              | 复核并交付通过的候选                     |
+所有工具声明 outputSchema，由 UiWorkflow 校验结果。
 
-run_id 就是 task_id。MCP 内部 worker 会继续执行。提交等待时间从排队后计算；等待结束不取消工作。新代码用新 request_id；网络重试用原 request_id，不会重新冻结源码或增加评测次数。
+- task_status：created/evaluating/needs_revision/ready_to_finalize/blocked/passed/cancelled/failed/budget_exhausted/stalled。
+- task_terminal：任务是否结束，结束不一定成功。
+- evaluation_status：这轮评测状态，completed 不代表 UI 达标。
+- next_action：submit/poll_status/revise_and_evaluate/finalize/review_configuration/inspect_failure/wait_for_cancellation/stop。
+- 证据：score、verdict、blockers、issues、budget_remaining、visual_feedback、artifacts、full_report。
 
-返回 score、verdict、blockers、issues、components、budget_remaining、next_action 和工件 URI。处理期间 score=null。历史仍保存在报告页和 owner 接口中。图像通过 `harness://artifacts/{artifact_id}` 资源读取；支持与否取决于宿主。
+兼容 status/task_state 保留，以 task_status/next_action 控制循环。新代码用新 request_id，网络重试用原 ID。处理中 score=null；等待超时不取消工作。
 
-## 给 Agent 的指令模板
+服务端 instructions 和 .agents/skills/leeway-ui-check/SKILL.md 指导未达标继续读图、修复、提交；只剩 profile_not_validated 时报告配置待审核，不能不停改 UI。默认 profile 未校准，正式验收通过 profile_id 选择存储中已审核的配置。
 
-> 使用 Leeway 评测任务 TASK_ID。先调用 ui_check_start 读取要求；修改目标源码后调用 ui_check_submit，每个新版本使用新的 request_id。如果返回 running，用 ui_check_status 查询同一个 request_id。根据 issues 和差异图继续修复，不修改参考图、profile 或验收要求。仅 verdict=pass 时 finalize。预算耗尽、取消或停滞时停止；如果只剩 profile_not_validated，报告配置待审核，不反复修改页面。Harness 不会替你修改源码。
+## Codex Stop hook
 
-## Owner / 调试入口
+在 Harness 仓库执行：
 
-启动参数末尾加 `--owner`，暴露十个工具：create_task、detect_project、suggest_regions、register_candidate、evaluate_candidate、get_evaluation、get_task_status、get_artifact、finalize_task、cancel_task。Owner 模式不暴露五个 Facade 工具。此区分只控制工具列表，不构成账号权限隔离。
+```powershell
+npm run setup:codex -- "<目标项目绝对路径>" "<与MCP相同的HARNESS_HOME>"
+```
 
-## 迁移
+安装项目级 Skill 和 .codex/hooks.json，保留其他 hook，不改全局配置。使用 Harness 的 Node/tsx，重复安装不重复添加。
 
-`ui_check_start` 现在从参考图和项目目录创建任务；`ui_check_submit` 统一负责提交和短暂等待；MCP 进程内部管理 worker。旧客户端需要刷新工具列表。
+重新加载配置，在 Codex 中审阅并信任项目 hooks（CLI 可用 /hooks）。未信任的 hook 会被跳过，见 [官方文档](https://learn.chatgpt.com/docs/hooks)。
 
-## 视觉反馈（报告1.1）
+PostToolUse 只监听本服务 start，将任务绑定到 session_id/cwd。Stop 查询数据库，在待实现、评测中、需修复、待 finalize 时返回 decision=block 与下一步，由宿主生成自动续执行提示。取消、终态、配置审核与耗尽预算时放行；最后一次评测仍可查询/finalize。
 
-submit/status现在返回visual_feedback。regions包含差异bbox、差异比例、crops参考/当前/差异图资源URI、dom_candidates及实际样式；comparison包含与上一轮的分数/差异比例变化、阻断变化及区域分裂/合并。参考CSS不会被猜测成事实。
+Interrupt 禁用绑定，不阻止用户中断；重新创建任务才重新绑定。每个绑定最多续执行12次、20分钟。无关聊天、不同 cwd、其他服务不拦截。错误写 stderr 并允许结束。
 
-请让Agent实际读取crops中的图像资源再分析。仅看到URI不代表已经看图。无法读取资源时应说明宿主限制，不虚构视觉判断。JSON摘要最多32KB，省略量通过issues_omitted、blockers_omitted、regions_omitted、region_changes_omitted说明。full_report给出 `harness://evaluations/{evaluation_id}`，可读取完整持久报告；完整报告内裁剪图为artifact ID。
+hook 是 Codex 适配层，不增加 MCP 工具。纯 MCP JSON/Schema 不强制宿主继续。当前验证覆盖真实 Chromium、共享CLI反馈、hook命令进程和状态策略；真实 Codex GUI/TUI 对话自动收敛仍需端到端验收。
 
-旧1.0报告仍然可读，visual_feedback为null；新评测失败时返回unavailable，不伪造差异区域。
+## 图像证据
+
+visual_feedback.regions 含差异 bbox、比例、reference/actual/diff crops URI、DOM候选和实际样式。comparison 含上一轮变化；参考CSS不会猜测成事实。
+
+Agent 必须实际读图，URI不代表已经看图。无法读取应说明宿主限制。摘要约32KB上限，省略量有计数；full_report指向完整报告，历史1.0报告仍可读。
