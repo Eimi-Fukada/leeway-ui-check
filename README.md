@@ -4,7 +4,7 @@
 
 为 AI 编码 Agent 提供截图对比、问题定位和可追溯的 UI 评测结果。
 
-你提供参考截图和页面要求，编码 Agent 修改页面，Leeway 用 Playwright 采集实现结果，返回像素、SSIM、布局和文字报告，帮助下一轮修复。
+提供参考截图和已运行的页面 URL，Leeway 用 Playwright 截图并比较，返回差异区域、局部对照图和评测结果，帮助编码 Agent 定位下一轮需要修复的内容。
 
 [快速开始](#快速开始) · [接入自己的项目](guides/usage.md) · [Agent / MCP](guides/mcp.md) · [能力范围](guides/status.md)
 
@@ -17,7 +17,7 @@
 - 对照参考图和页面截图，查看普通、严格差异图与区域问题。
 - 无需手工标注即可获得主要差异区域、局部对照图、实际DOM/样式候选及上一轮变化；由编码Agent判断修改原因。
 - 将文字、几何、交互及资源错误作为独立阻断条件。
-- 通过五个 MCP 工具提交代码版本、查询反馈、取消和交付。
+- 通过五个 MCP 工具创建任务、提交页面评测、查询反馈、取消和完成验收。
 - 保存每轮页面截图、报告和证据；完成时复核持久化证据。
 
 **当前为本地单用户早期版本。** 默认分数用于诊断，正式验收需要已验证的 profile。OCR、视觉模型、安全隔离和真实模型自动收敛尚未实现或验收。详见 [能力范围](guides/status.md)。
@@ -59,13 +59,13 @@ Harness 不自动猜测按钮的业务行为。需要检查的交互须写入任
 
 ## 文档
 
-- [使用指南](guides/usage.md)：自定义项目、命令、环境变量。
-- [MCP 接入](guides/mcp.md)：工具、参数、Agent 指令与接口迁移。
+- [使用指南](guides/usage.md)：页面接入、CLI 操作与数据目录。
+- [MCP 接入](guides/mcp.md)：工具、参数、Agent 指令与可选 hooks。
 - [常见问题](guides/faq.md)：100 分未通过、Python、重复提交与错误恢复。
 - [架构](guides/project-tour.md)：模块职责和实际执行链路。
-- [视觉反馈设计](guides/visual-feedback-design.md)：差异区域、局部对照图、DOM关联与轮次变化的规则和实现边界。
+- [视觉反馈机制](guides/visual-feedback-design.md)：差异区域、局部对照图、DOM关联与轮次变化。
 - [评分校准](evals/calibration/README.md)：权重、证据和正式验收。
-- [更新记录](CHANGELOG.md) · [贡献指南](CONTRIBUTING.md) · [安全边界](SECURITY.md)。
+- [版本说明](CHANGELOG.md) · [贡献指南](CONTRIBUTING.md) · [安全边界](SECURITY.md)。
 
 ## 反馈与贡献
 

@@ -1,3 +1,4 @@
+import { unavailableFeedback } from '../../packages/core/src/regions/visual-feedback.js';
 import { describe, it, expect } from 'vitest';
 import {
   TaskInput,
@@ -72,15 +73,17 @@ function score(c: TaskConfig, ratio = 0) {
   return scoreReport(
     c,
     {
-      schema_version: '1.0',
+      schema_version: '1.1',
+      visual_feedback: unavailableFeedback('test'),
+      target_url: config.target.url,
+      evidence_scope: 'captured_page',
       task_id: 'task',
       evaluation_id: 'eval',
       candidate_id: 'candidate',
       profile_id: c.profile.profile_id,
       reference_sha256: hash('ref'),
       profile_sha256: hash('profile'),
-      source_manifest_hash: hash('source'),
-      build_manifest_hash: null,
+
       evaluator_version: 'leeway-0.1.0',
       status: 'completed',
       artifacts: { reference: 'ref' },

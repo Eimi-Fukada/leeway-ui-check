@@ -10,7 +10,7 @@
 
 **submission_busy是什么？** 同一任务正在登记一次评测，稍后重试。若MCP进程崩溃留下锁，先停止该数据目录下所有MCP提交进程，确认没有评测提交操作，再仅删除HARNESS_HOME/submission-locks/TASK_ID这个空目录。不要在进程运行时清锁。
 
-**要自己标注区域吗？** 当前正式布局/文字评分需要参考bbox、selector、expected_text。区域建议不等于可靠自动识别；没有基准时使用明确的pixel_diagnostic配置，不能沿用四维90分的含义。
+**要自己标注区域吗？** 差异定位和局部对照图可以自动生成。布局/文字评分需要参考bbox、selector、expected_text；没有这些标注时使用pixel_diagnostic，仅计算像素与结构分数。
 
 **支持所有操作系统吗？** 当前实际验收以Windows为主。其他平台不能据此宣称相同分数或完整兼容。
 

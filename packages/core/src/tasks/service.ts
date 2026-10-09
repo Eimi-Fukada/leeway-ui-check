@@ -75,12 +75,7 @@ export class TaskService {
   task(taskId: string) {
     const row = this.store.get<TaskRow>('SELECT * FROM tasks WHERE id=?', taskId);
     if (!row) throw Error('task_not_found');
-    const config = JSON.parse(row.config);
-    if (config.target?.mode === 'workspace')
-      throw Error('legacy_workspace_task_recreate_with_target_url');
-    // Older URL tasks stored an unused sandbox default. Ignore it when reading legacy config.
-    if (config.target?.mode === 'external') delete config.sandbox;
-    return { ...row, config: TaskInput.parse(config) };
+    return { ...row, config: TaskInput.parse(JSON.parse(row.config)) };
   }
   async createTask(input: unknown) {
     const config = TaskInput.parse(input);
@@ -197,28 +192,16 @@ export class TaskService {
       throw Error('task_not_accepting_candidates');
     const target = task.config.target,
       candidateId = id('cand');
-    // Retain legacy DB columns, but never read or claim to freeze target source files.
-    const frozen = {
-      entries: [],
-      source_hash: hash(JSON.stringify(target)),
-      asset_hash: hash('[]'),
-      build_hash: hash(JSON.stringify(target)),
-    };
     this.store.transaction(() => {
       const current = this.task(taskId);
       if (terminal.has(current.state) || current.cancellation_requested_at)
         throw Error('task_not_accepting_candidates');
       this.store.run(
-        'INSERT INTO candidates(id,task_id,state,provenance,source_hash,asset_hash,build_hash,workspace_path,manifest,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO candidates(id,task_id,state,target_url,created_at) VALUES(?,?,?,?,?)',
         candidateId,
         taskId,
         'ready',
-        'url_capture',
-        frozen.source_hash,
-        frozen.asset_hash,
-        frozen.build_hash,
-        null,
-        JSON.stringify(frozen.entries),
+        target.url,
         Date.now(),
       );
       this.store.event(taskId, 'candidate_registered', {
@@ -228,7 +211,6 @@ export class TaskService {
     });
     return {
       candidate_id: candidateId,
-      provenance: 'url_capture',
       target_url: target.url,
       evidence_scope: 'captured_page',
     };
@@ -348,12 +330,7 @@ export class TaskService {
         "SELECT id FROM evaluations WHERE task_id=? AND state IN ('capturing','comparing','testing')",
         taskId,
       );
-      const agent = this.store.get(
-        "SELECT id FROM agent_attempts WHERE task_id=? AND state='running'",
-        taskId,
-      );
-      if (!active && !agent)
-        this.store.run("UPDATE tasks SET state='cancelled' WHERE id=?", taskId);
+      if (!active) this.store.run("UPDATE tasks SET state='cancelled' WHERE id=?", taskId);
       this.store.event(taskId, 'cancellation_requested', {});
     });
     return this.getTaskStatus(taskId);
@@ -434,7 +411,6 @@ export class TaskService {
     const processing = row && ['queued', 'capturing', 'comparing', 'testing'].includes(row.state);
     const result = {
       run_id: taskId,
-      task_state: task.state,
       task_status: terminal.has(task.state)
         ? task.state
         : task.cancellation_requested_at
@@ -455,7 +431,6 @@ export class TaskService {
       task_terminal: terminal.has(task.state),
       evaluation_status: row?.state ?? null,
       request_id: row?.request_id ?? null,
-      status: processing ? 'running' : (row?.state ?? task.state),
       score: report?.score ?? null,
       verdict: report?.verdict ?? null,
       blockers: report?.blockers ?? [],
@@ -511,7 +486,7 @@ export class TaskService {
   async finalizeTask(taskId: string, candidateId: string) {
     const t = this.task(taskId),
       candidate = this.candidate(candidateId);
-    if (candidate.task_id !== taskId || candidate.provenance !== 'url_capture')
+    if (candidate.task_id !== taskId || candidate.target_url !== t.config.target.url)
       throw Error('candidate_not_deliverable');
     if (t.state !== 'passed' && (terminal.has(t.state) || t.cancellation_requested_at))
       throw Error('task_terminal');
@@ -686,21 +661,20 @@ export class TaskService {
     const t = this.task(e.task_id),
       c = this.candidate(e.candidate_id);
     return {
-      schema_version: '1.0' as const,
+      schema_version: '1.1' as const,
+      visual_feedback: unavailableFeedback('not_generated'),
       task_id: t.id as string,
       evaluation_id: evaluationId,
       candidate_id: c.id as string,
       profile_id: t.config.profile.profile_id,
       reference_sha256: t.reference_hash as string,
       profile_sha256: hash(JSON.stringify(t.config.profile)),
-      source_manifest_hash: null,
       target_url: t.config.target.url,
       evidence_scope: 'captured_page' as const,
       evaluator_version: 'leeway-0.1.0' as const,
       status: 'completed' as const,
       artifacts: { reference: t.reference_artifact as string },
       environment: null,
-      build_manifest_hash: null,
       region_metrics: [],
       budget_remaining: this.remaining(t.id),
     };
@@ -769,7 +743,6 @@ export class TaskService {
       config,
       {
         ...base,
-        build_manifest_hash: null,
         environment: captured.environment,
         artifacts: {
           reference: task.reference_artifact,

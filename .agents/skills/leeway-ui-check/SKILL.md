@@ -7,7 +7,7 @@ Use this workflow when the user requests Leeway UI reconstruction. Follow explic
 
 1. Start the target project with your own project tools. Keep its HTTP/HTTPS URL accessible to the Harness. Call `ui_check_start` with the reference image path, viewport and `target_url`. Preserve the returned `run_id` and acceptance requirements.
 2. Modify the target code and ensure the running URL reflects the update, then call `ui_check_submit` with a new `request_id` for each changed version. Reuse the same request ID only to retry the same submission.
-3. Use `task_status` and `next_action`, not legacy `status=completed`, to decide what happens next:
+3. Use `task_status` and `next_action` to decide what happens next:
    - `evaluating`: poll `ui_check_status` with the same run/request IDs. Never queue duplicate work.
    - `needs_revision`: actually read the reference/actual/diff crop images, repair code, and resubmit within budget. Do not end by asking the user to say continue.
    - `ready_to_finalize`: call `ui_check_finalize`; its passing result confirms captured page evidence, not source code or future URL content.

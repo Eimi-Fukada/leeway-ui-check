@@ -1,18 +1,14 @@
-# 更新记录
+# 版本说明
 
-## Unreleased
+## 0.1.0（开发中）
 
-- Web主流程改为参考图与已运行target_url；移除目标build/serve、源码指纹扫描、Controller及项目检测。CLI/MCP共享五工具，Codex负责启动和更新页面。
-- finalize确认最新采集证据通过，返回URL、评测ID和截图哈希；不再声称验证源码/构建来源。旧workspace任务需用URL重新创建，历史报告资源保留。
-- 新增报告1.1视觉反馈：二值差异掩码、区域与成对裁剪图、运行时DOM/样式关联、前后轮趋势和区域分裂/合并。旧1.0报告保留读取兼容。
-- MCP摘要限制32KB并支持完整报告资源；报告页新增局部对照与DOM证据。评分参数和Gate不变。
+本地单用户 Web UI 评测 Harness，输入参考截图和已运行的目标 URL。
 
-- 默认MCP收敛到start、submit、status、cancel、finalize五个工具；owner模式已移除。
-- 移除ui_check_submit_and_wait工具；submit增加wait_ms（0–30000），超时返回running，由MCP内置worker继续执行。
-- 提交按task/request复用已有结果，增加跨进程提交串行锁；异常锁恢复见FAQ。
-- 状态返回当前反馈和证据URI，不再默认返回整段历史。
-- 重整公开文档，新增任务模板、MCP指南、FAQ、贡献与安全说明。
+- 五个 MCP 工具：创建任务、提交评测、查看状态、取消、完成；CLI 共用相同合同。
+- Playwright 稳定截图，结合像素、SSIM及标注几何/文字评分，执行交互与响应式检查。
+- 差异区域、局部对照图、实际 DOM/样式候选和轮次变化。
+- SQLite 评测队列、请求去重、预算与停滞控制、不可变证据和只读报告页。
+- 项目级 Skill 与可选 Codex Stop hook，支持有界续执行及用户中断。
+- 完成任务时确认指定采集证据的验收结果，返回目标 URL、评测 ID 和截图哈希。
 
-## 0.1.0 初始实现
-
-本地截图评测、四项指标、SQLite任务、CLI/MCP、报告页和确定性示例。此条描述代码阶段，不代表已经发布npm包或GitHub Release。
+默认分数用于诊断，正式验收需要已验证的 profile。真实模型多轮收敛与评分校准尚待验收。当前以源码方式安装，版本号不表示 npm 包或 GitHub Release 已发布。

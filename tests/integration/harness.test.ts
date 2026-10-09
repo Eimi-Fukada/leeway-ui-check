@@ -53,8 +53,6 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     await service.runNext();
     const report = service.getEvaluation(queued.evaluation_id!).report!;
     expect(report.score?.value).toBe(100);
-    expect(report.source_manifest_hash).toBeNull();
-    expect(report.build_manifest_hash).toBeNull();
     expect(report.target_url).toBe(config.target.url);
     expect(report.evidence_scope).toBe('captured_page');
   });
@@ -201,7 +199,6 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     };
     const { task, candidate, evaluation } = await evaluate('exact', { profile });
     expect(evaluation.report?.verdict).toBe('pass');
-    expect(evaluation.report?.build_manifest_hash).toBeNull();
     const final = await service.finalizeTask(task.task_id, candidate.candidate_id);
     expect(final.state).toBe('passed');
     await writeFile(path.join(root, 'target/index.html'), 'user edits after passing capture');

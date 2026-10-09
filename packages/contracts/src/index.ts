@@ -256,19 +256,17 @@ export const RegionPixelMetric = z
   .strict();
 export const Report = z
   .object({
-    schema_version: z.enum(['1.0', '1.1']),
-    visual_feedback: VisualFeedback.optional(),
+    schema_version: z.literal('1.1'),
+    visual_feedback: VisualFeedback,
     task_id: Id,
     evaluation_id: Id,
     candidate_id: Id,
     profile_id: Id,
     reference_sha256: Hash,
     profile_sha256: Hash,
-    source_manifest_hash: Hash.nullable().default(null), // legacy reports only
-    target_url: WebUrl.optional(),
-    evidence_scope: z.literal('captured_page').optional(),
+    target_url: WebUrl,
+    evidence_scope: z.literal('captured_page'),
     evaluator_version: z.literal('leeway-0.1.0'),
-    build_manifest_hash: Hash.nullable().default(null),
     status: z.enum(['completed', 'failed', 'cancelled']),
     verdict: z.enum(['pass', 'needs_revision', 'review_required']),
     score: z
@@ -317,10 +315,6 @@ export const Report = z
   })
   .strict()
   .superRefine((r, c) => {
-    if (r.schema_version === '1.0' && r.visual_feedback)
-      c.addIssue({ code: 'custom', message: 'visual feedback requires report 1.1' });
-    if (r.schema_version === '1.1' && !r.visual_feedback)
-      c.addIssue({ code: 'custom', message: 'report 1.1 requires visual feedback' });
     if (r.score && (!r.components || !r.metrics))
       c.addIssue({ code: 'custom', message: 'score requires components and metrics' });
     if (r.status !== 'completed' && r.score)

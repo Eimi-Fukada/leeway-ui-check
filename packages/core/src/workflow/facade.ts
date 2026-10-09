@@ -36,7 +36,6 @@ export const StartInput = z
 export const AgentStatus = z
   .object({
     run_id: Id,
-    task_state: z.string(),
     task_status: z.enum([
       'created',
       'evaluating',
@@ -52,7 +51,6 @@ export const AgentStatus = z
     task_terminal: z.boolean(),
     evaluation_status: z.string().nullable(),
     request_id: Id.nullable(),
-    status: z.string(), // legacy evaluation status; use task_status for workflow control
     score: Report.innerType().shape.score,
     verdict: Report.innerType().shape.verdict.nullable(),
     blockers: z.array(z.string()),
@@ -61,7 +59,7 @@ export const AgentStatus = z
     blockers_omitted: z.number().int().min(0),
     components: Report.innerType().shape.components,
     schema_version: z.string(),
-    visual_feedback: Report.innerType().shape.visual_feedback.nullable().optional(),
+    visual_feedback: Report.innerType().shape.visual_feedback.nullable(),
     full_report: z.string().nullable(),
     budget_remaining: Report.innerType().shape.budget_remaining,
     artifacts: z.record(z.string()),

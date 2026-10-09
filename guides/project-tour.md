@@ -12,7 +12,7 @@ URL → Playwright 截图/DOM/交互 → 像素/SSIM/布局/文字
 Report + ArtifactStore → Agent 读取差异图后修改并更新页面
 ```
 
-Task 是冻结参考图与验收条件的任务；Candidate 是一轮 URL 页面采集候选，不是源码快照；Evaluation 是一次评测；Artifact 是截图、差异图、DOM 与报告。
+Task 固定参考图与验收条件；Candidate 标识一轮 URL 页面采集候选；Evaluation 记录一次评测；Artifact 保存截图、差异图、DOM 与报告。
 
 | 文件或目录                                  | 职责                                                                                             |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -32,10 +32,8 @@ Task 是冻结参考图与验收条件的任务；Candidate 是一轮 URL 页面
 | workers/ssim_worker.py                      | scikit-image SSIM 计算                                                                           |
 | scripts/fixtures.ts                         | 测试/演示侧启动独立 HTTP 页面，非 Harness 目标启动能力                                           |
 
-源码扫描、目标 build/serve、项目识别、源码区域建议、Controller 编码程序循环和目标进程监督器已移除。
-
 submit 在短文件锁内去重登记。新实现使用新 request_id，重试复用原 ID。worker 通过租约和 fence 控制提交权，等待超时不取消评测。
 
-正式通过仍要求得分满足阈值、无阻断、已验证 profile。finalize 确认最新候选的持久化报告和证据，返回 evaluation_id、target_url、截图 URI/哈希、evidence_scope=captured_page。不重新访问动态 URL，不证明当前或未来页面、源码提交、构建产物对应截图。
+正式通过要求得分满足阈值、无阻断、已验证 profile。finalize 确认最新候选的持久化报告和证据，返回 evaluation_id、target_url、截图 URI/哈希、evidence_scope=captured_page。验收范围是采集时的页面效果。
 
-历史报告保留旧 source_manifest_hash/build_manifest_hash 字段；新报告均为 null。数据库暂保留旧列用于兼容已有存储，新候选不记录源码清单。旧 workspace 任务不会继续执行，需用 URL 新建任务；历史报告及图片资源仍可读取。
+数据保存在 HARNESS_HOME 下的 SQLite 与证据目录。Candidate 表保存 ID、任务、状态、目标 URL 和创建时间；报告使用 schema_version=1.1。

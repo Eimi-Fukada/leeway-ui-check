@@ -12,7 +12,7 @@ GUI/TUI、MCP/CLI 共用 UiWorkflow 输入校验和输出合同。
 | ui_check_cancel   | run_id                                                                                                                     | 请求取消并等待清理                 |
 | ui_check_finalize | run_id                                                                                                                     | 复核最新通过版本，成功才完成       |
 
---owner 与十个底层 MCP 工具已删除。Candidate/Evaluation/Artifact 仍是内部对象；图片和报告通过 resources 读取。
+图片和完整报告通过 MCP resources 读取。
 
 ## 连接
 
@@ -45,11 +45,11 @@ MCP 内置 worker，无需另开 npm run worker。hook 要求宿主服务名为 
 - next_action：submit/poll_status/revise_and_evaluate/finalize/review_configuration/inspect_failure/wait_for_cancellation/stop。
 - 证据：score、verdict、blockers、issues、budget_remaining、visual_feedback、artifacts、full_report。
 
-兼容 status/task_state 保留，以 task_status/next_action 控制循环。新代码用新 request_id，网络重试用原 ID。处理中 score=null；等待超时不取消工作。
+以 task_status/next_action 控制循环。新代码用新 request_id，网络重试用原 ID。处理中 score=null；等待超时不取消工作。
 
 服务端 instructions 和 .agents/skills/leeway-ui-check/SKILL.md 指导未达标继续读图、修复、提交；只剩 profile_not_validated 时报告配置待审核，不能不停改 UI。默认 profile 未校准，正式验收通过 profile_id 选择存储中已审核的配置。
 
-finalize 返回 target_url、evaluation_id、截图 URI/哈希和 evidence_scope=captured_page，只确认本次采集证据通过，不验证源码、构建版本或未来页面内容。旧 workspace 任务需用 URL 重新创建；旧报告和图像资源仍可读取。
+finalize 返回 target_url、evaluation_id、截图 URI/哈希和 evidence_scope=captured_page，确认本次采集证据通过。报告使用 schema_version=1.1。
 
 ## Codex Stop hook
 
@@ -73,4 +73,4 @@ hook 是 Codex 适配层，不增加 MCP 工具。纯 MCP JSON/Schema 不强制�
 
 visual_feedback.regions 含差异 bbox、比例、reference/actual/diff crops URI、DOM候选和实际样式。comparison 含上一轮变化；参考CSS不会猜测成事实。
 
-Agent 必须实际读图，URI不代表已经看图。无法读取应说明宿主限制。摘要约32KB上限，省略量有计数；full_report指向完整报告，历史1.0报告仍可读。
+Agent 必须实际读图，URI不代表已经看图。无法读取应说明宿主限制。摘要约32KB上限，省略量有计数；full_report指向完整报告。

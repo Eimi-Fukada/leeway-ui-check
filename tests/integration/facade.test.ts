@@ -29,7 +29,7 @@ it('serializes URL submissions, replays requests, waits without consuming jobs, 
     const start = Date.now();
     const pending = await service.submitAndWait(task.task_id, 'one', 200);
     expect(Date.now() - start).toBeGreaterThanOrEqual(180);
-    expect(pending.status).toBe('running');
+    expect(pending.task_status).toBe('evaluating');
     expect(pending.score).toBeNull();
     expect(service.getEvaluation(a.evaluation_id!).state).toBe('queued');
     await expect(worker.submitCandidate(task.task_id, 'two')).rejects.toThrow(
@@ -38,7 +38,7 @@ it('serializes URL submissions, replays requests, waits without consuming jobs, 
     const waiting = service.submitAndWait(task.task_id, 'one', 15000);
     await worker.runNext();
     const done = await waiting;
-    expect(done.status).toBe('completed');
+    expect(done.evaluation_status).toBe('completed');
     expect(done.score?.value).toBe(100);
     expect(done.next_action).toBe('review_configuration');
     expect(done.artifacts.actual).toMatch(/^harness:\/\/artifacts\//);
@@ -117,7 +117,7 @@ it('evaluates an externally owned URL without reading or copying source', async 
     const task = await service.createTask(config),
       queued = await service.submitCandidate(task.task_id, 'workspace_001');
     expect(queued.evaluation_id).toBeTruthy();
-    expect((await service.candidate(queued.candidate_id)).workspace_path).toBeNull();
+    expect(service.candidate(queued.candidate_id).target_url).toBe(config.target.url);
     await worker.runNext();
     const result = service.getEvaluation(queued.evaluation_id!);
     expect(result.state).toBe('completed');

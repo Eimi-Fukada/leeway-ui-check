@@ -2,8 +2,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { TaskService } from '../../core/src/tasks/service.js';
 import { runWorker } from '../../core/src/workflow/worker.js';
 import { createMcpServer } from './server.js';
-if (process.argv.includes('--owner'))
-  throw Error('--owner was removed; use the five ui_check tools');
 const service = new TaskService();
 const server = createMcpServer(service);
 const abort = new AbortController();

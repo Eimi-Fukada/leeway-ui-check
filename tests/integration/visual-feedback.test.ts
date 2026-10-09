@@ -72,9 +72,9 @@ it('returns unannotated visual evidence, crop PNG resources and previous-round r
     expect(
       exact.visual_feedback?.comparison?.region_changes.every((r) => r.kind === 'resolved'),
     ).toBe(true);
-    const { visual_feedback, ...legacy } = exact;
-    expect(Report.parse({ ...legacy, schema_version: '1.0' }).visual_feedback).toBeUndefined();
-    expect(() => Report.parse({ ...legacy, schema_version: '1.1' })).toThrow();
+    const { visual_feedback, ...withoutFeedback } = exact;
+    expect(() => Report.parse(withoutFeedback)).toThrow();
+    expect(() => Report.parse({ ...exact, schema_version: '1.0' })).toThrow();
   } finally {
     await client.close();
     await server.close();

@@ -125,15 +125,6 @@ it('runs all five tools through a real stdio MCP worker using only reference ima
     });
     expect(cancelled.task_status).toBe('cancelled');
     expect((await fetch(config.target.url)).ok).toBe(true);
-    const legacy = await service.createTask(config);
-    service.store.run(
-      'UPDATE tasks SET config=? WHERE id=?',
-      JSON.stringify({ ...config, target: { mode: 'workspace', source_dir: root } }),
-      legacy.task_id,
-    );
-    expect(() => service.task(legacy.task_id)).toThrow(
-      'legacy_workspace_task_recreate_with_target_url',
-    );
     expect(
       service.store
         .all('SELECT kind FROM events WHERE task_id=?', created.run_id)

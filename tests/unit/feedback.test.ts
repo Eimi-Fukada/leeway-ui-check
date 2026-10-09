@@ -144,14 +144,17 @@ it('tracks split/merged regions on equal-area unions and rejects incompatible hi
     return {
       pixels,
       report: Report.parse({
-        schema_version: '1.0',
+        schema_version: '1.1',
+        visual_feedback: unavailableFeedback('test'),
+        target_url: config.target.url,
+        evidence_scope: 'captured_page',
         task_id: 'task',
         evaluation_id,
         candidate_id: 'candidate',
         profile_id: config.profile.profile_id,
         reference_sha256: 'a'.repeat(64),
         profile_sha256: 'b'.repeat(64),
-        source_manifest_hash: 'c'.repeat(64),
+
         evaluator_version: 'leeway-0.1.0',
         status: 'completed',
         verdict: 'needs_revision',

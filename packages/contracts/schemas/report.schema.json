@@ -6,10 +6,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "enum": [
-            "1.0",
-            "1.1"
-          ]
+          "const": "1.1"
         },
         "visual_feedback": {
           "type": "object",
@@ -427,18 +424,6 @@
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
         },
-        "source_manifest_hash": {
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "target_url": {
           "type": "string",
           "format": "uri"
@@ -450,18 +435,6 @@
         "evaluator_version": {
           "type": "string",
           "const": "leeway-0.1.0"
-        },
-        "build_manifest_hash": {
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         },
         "status": {
           "type": "string",
@@ -914,12 +887,15 @@
       },
       "required": [
         "schema_version",
+        "visual_feedback",
         "task_id",
         "evaluation_id",
         "candidate_id",
         "profile_id",
         "reference_sha256",
         "profile_sha256",
+        "target_url",
+        "evidence_scope",
         "evaluator_version",
         "status",
         "verdict",
