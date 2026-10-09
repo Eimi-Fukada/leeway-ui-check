@@ -4,13 +4,13 @@
 
 GUI/TUI、MCP/CLI 共用 UiWorkflow 输入校验和输出合同。
 
-| 工具              | 输入                                                                                                               | 行为                               |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| ui_check_start    | reference_image_path、source_dir、viewport_width/height、serve；可选 regions/required_checks/responsive/profile_id | 创建并冻结要求                     |
-| ui_check_submit   | run_id、request_id、wait_ms（默认10000，上限30000）                                                                | 提交当前版本并等待评测，不代表完成 |
-| ui_check_status   | run_id、request_id（可选）                                                                                         | 查询状态、证据和下一步             |
-| ui_check_cancel   | run_id                                                                                                             | 请求取消并等待清理                 |
-| ui_check_finalize | run_id                                                                                                             | 复核最新通过版本，成功才完成       |
+| 工具              | 输入                                                                                                                       | 行为                               |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| ui_check_start    | reference_image_path、target_url、viewport_width/height；可选 ready_selector/regions/required_checks/responsive/profile_id | 创建并冻结要求                     |
+| ui_check_submit   | run_id、request_id、wait_ms（默认10000，上限30000）                                                                        | 提交当前版本并等待评测，不代表完成 |
+| ui_check_status   | run_id、request_id（可选）                                                                                                 | 查询状态、证据和下一步             |
+| ui_check_cancel   | run_id                                                                                                                     | 请求取消并等待清理                 |
+| ui_check_finalize | run_id                                                                                                                     | 复核最新通过版本，成功才完成       |
 
 --owner 与十个底层 MCP 工具已删除。Candidate/Evaluation/Artifact 仍是内部对象；图片和报告通过 resources 读取。
 
@@ -33,7 +33,7 @@ MCP 内置 worker，无需另开 npm run worker。hook 要求宿主服务名为 
 }
 ```
 
-替换为绝对路径；不同宿主配置格式可能不同。当前 start 仍是 workspace 模式，需要源码目录与启动命令，此次未改为 URL 模式。内置 Playwright，无需 Codex 另装 Playwright MCP。
+替换为绝对路径；不同宿主配置格式可能不同。start 只接收已运行的 HTTP/HTTPS target_url。Codex 负责启动与更新目标项目，Harness 不读取源码、不构建、不启动或停止目标服务。ready_selector 默认 body，可指定实际页面就绪标志。内置 Playwright，无需 Codex 另装 Playwright MCP。
 
 ## 状态和持续修复
 
@@ -48,6 +48,8 @@ MCP 内置 worker，无需另开 npm run worker。hook 要求宿主服务名为 
 兼容 status/task_state 保留，以 task_status/next_action 控制循环。新代码用新 request_id，网络重试用原 ID。处理中 score=null；等待超时不取消工作。
 
 服务端 instructions 和 .agents/skills/leeway-ui-check/SKILL.md 指导未达标继续读图、修复、提交；只剩 profile_not_validated 时报告配置待审核，不能不停改 UI。默认 profile 未校准，正式验收通过 profile_id 选择存储中已审核的配置。
+
+finalize 返回 target_url、evaluation_id、截图 URI/哈希和 evidence_scope=captured_page，只确认本次采集证据通过，不验证源码、构建版本或未来页面内容。旧 workspace 任务需用 URL 重新创建；旧报告和图像资源仍可读取。
 
 ## Codex Stop hook
 

@@ -187,7 +187,6 @@ export function scoreReport(
     issues = [...region.issues];
   if (!config.reference.confirmed) blockers.push('needs_reference_confirmation');
   if (p.status !== 'validated') blockers.push('profile_not_validated');
-  if (config.target.mode === 'external') blockers.push('source_provenance_unverified');
   for (const error of captured.runtime) {
     blockers.push(error);
     issues.push({

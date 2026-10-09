@@ -1,8 +1,6 @@
 import path from 'node:path';
 import os from 'node:os';
 import { readFile, mkdir, rmdir } from 'node:fs/promises';
-import { createServer } from 'node:net';
-import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import sharp from 'sharp';
 import {
@@ -15,11 +13,8 @@ import { Store } from '../storage/database.js';
 import { ArtifactStore, hash, id } from '../storage/artifacts.js';
 import { normalizeImage, pixelCompare, regionPixels } from '../compare/images.js';
 import { ssim } from '../compare/ssim.js';
-import { manifest } from '../workspace/manifest.js';
-import { launch, runCommand } from '../candidates/process.js';
 import { capture } from '../capture/runner.js';
 import { scoreReport } from '../scoring/evaluate.js';
-import { sandboxEnvironment } from '../sandbox/policy.js';
 import {
   buildFeedback,
   summarizeFeedback,
@@ -80,13 +75,16 @@ export class TaskService {
   task(taskId: string) {
     const row = this.store.get<TaskRow>('SELECT * FROM tasks WHERE id=?', taskId);
     if (!row) throw Error('task_not_found');
-    return { ...row, config: TaskInput.parse(JSON.parse(row.config)) };
+    const config = JSON.parse(row.config);
+    if (config.target?.mode === 'workspace')
+      throw Error('legacy_workspace_task_recreate_with_target_url');
+    // Older URL tasks stored an unused sandbox default. Ignore it when reading legacy config.
+    if (config.target?.mode === 'external') delete config.sandbox;
+    return { ...row, config: TaskInput.parse(config) };
   }
   async createTask(input: unknown) {
     const config = TaskInput.parse(input);
     if (config.profile.status === 'retired') throw Error('profile_retired');
-    if (config.target.mode === 'workspace')
-      config.target.source_dir = path.resolve(config.target.source_dir);
     // Validation documents must already be imported by the owner into this store.
     if (config.profile.status === 'validated') {
       const validation = config.profile.validation!;
@@ -199,26 +197,13 @@ export class TaskService {
       throw Error('task_not_accepting_candidates');
     const target = task.config.target,
       candidateId = id('cand');
-    let frozen: { entries: unknown[]; source_hash: string; asset_hash: string; build_hash: string };
-    if (target.mode === 'workspace') {
-      const entries = await manifest(target.source_dir);
-      frozen = {
-        entries,
-        source_hash: hash(JSON.stringify(entries)),
-        asset_hash: hash(
-          JSON.stringify(
-            entries.filter((e) => target.asset_extensions.includes(path.extname(e.path))),
-          ),
-        ),
-        build_hash: hash(JSON.stringify(target)),
-      };
-    } else
-      frozen = {
-        entries: [],
-        source_hash: hash(JSON.stringify(target)),
-        asset_hash: hash('[]'),
-        build_hash: hash(JSON.stringify(target)),
-      };
+    // Retain legacy DB columns, but never read or claim to freeze target source files.
+    const frozen = {
+      entries: [],
+      source_hash: hash(JSON.stringify(target)),
+      asset_hash: hash('[]'),
+      build_hash: hash(JSON.stringify(target)),
+    };
     this.store.transaction(() => {
       const current = this.task(taskId);
       if (terminal.has(current.state) || current.cancellation_requested_at)
@@ -228,7 +213,7 @@ export class TaskService {
         candidateId,
         taskId,
         'ready',
-        target.mode === 'external' ? 'unverified' : 'workspace',
+        'url_capture',
         frozen.source_hash,
         frozen.asset_hash,
         frozen.build_hash,
@@ -238,14 +223,14 @@ export class TaskService {
       );
       this.store.event(taskId, 'candidate_registered', {
         candidate_id: candidateId,
-        source_manifest_hash: frozen.source_hash,
+        target_url: target.url,
       });
     });
     return {
       candidate_id: candidateId,
-      provenance: target.mode === 'external' ? 'unverified' : 'workspace',
-      source_manifest_hash: frozen.source_hash,
-      workspace_path: target.mode === 'workspace' ? target.source_dir : null,
+      provenance: 'url_capture',
+      target_url: target.url,
+      evidence_scope: 'captured_page',
     };
   }
   candidate(candidateId: string) {
@@ -384,7 +369,7 @@ export class TaskService {
       );
     const replay = existing();
     if (replay) return replay;
-    // Cross-process workspace serialization. Never hold a SQLite transaction across file IO.
+    // Cross-process submission serialization. Never hold a SQLite transaction across artifact IO.
     const parent = path.join(this.root, 'submission-locks');
     await mkdir(parent, { recursive: true });
     const lock = path.join(parent, taskId);
@@ -526,22 +511,11 @@ export class TaskService {
   async finalizeTask(taskId: string, candidateId: string) {
     const t = this.task(taskId),
       candidate = this.candidate(candidateId);
-    if (t.state === 'passed' && t.final_candidate === candidateId)
-      return {
-        task_id: taskId,
-        state: 'passed',
-        candidate_id: candidateId,
-        workspace_path:
-          this.task(taskId).config.target.mode === 'workspace'
-            ? (
-                this.task(taskId).config.target as Extract<
-                  TaskConfig['target'],
-                  { mode: 'workspace' }
-                >
-              ).source_dir
-            : null,
-      };
-    if (terminal.has(t.state) || t.cancellation_requested_at) throw Error('task_terminal');
+    if (candidate.task_id !== taskId || candidate.provenance !== 'url_capture')
+      throw Error('candidate_not_deliverable');
+    if (t.state !== 'passed' && (terminal.has(t.state) || t.cancellation_requested_at))
+      throw Error('task_terminal');
+    if (t.latest_candidate !== candidateId) throw Error('candidate_not_latest');
     if (
       this.store.get(
         "SELECT id FROM evaluations WHERE task_id=? AND state IN ('queued','capturing','comparing','testing')",
@@ -549,64 +523,61 @@ export class TaskService {
       )
     )
       throw Error('evaluation_conflict');
-    if (
-      candidate.task_id !== taskId ||
-      candidate.provenance !== 'workspace' ||
-      t.config.profile.status !== 'validated'
-    )
-      throw Error('candidate_not_deliverable');
     const e = this.store.get(
-      "SELECT report FROM evaluations WHERE task_id=? AND candidate_id=? AND state='completed' ORDER BY created_at DESC LIMIT 1",
+      "SELECT id,report FROM evaluations WHERE task_id=? AND candidate_id=? AND state='completed' ORDER BY created_at DESC LIMIT 1",
       taskId,
       candidateId,
     );
-    if (!e || Report.parse(JSON.parse(e.report)).verdict !== 'pass')
-      throw Error('candidate_not_passed');
-    const passing = Report.parse(JSON.parse(e.report));
-    const deliverySource =
-      t.config.target.mode === 'workspace'
-        ? t.config.target.mode === 'workspace'
-          ? t.config.target.source_dir
-          : ''
-        : null;
     if (
-      !passing.build_manifest_hash ||
-      !deliverySource ||
-      hash(JSON.stringify(await manifest(deliverySource, true))) !== passing.build_manifest_hash
+      !e ||
+      Report.parse(JSON.parse(e.report)).verdict !== 'pass' ||
+      t.config.profile.status !== 'validated'
     )
-      throw Error('build_artifact_hash_mismatch');
-    await this.verifyCandidateSource(candidate);
-    this.store.transaction(() => {
-      const current = this.task(taskId);
-      if (current.cancellation_requested_at || terminal.has(current.state))
-        throw Error('task_terminal');
-      this.store.run(
-        "UPDATE tasks SET state='passed',final_candidate=? WHERE id=?",
-        candidateId,
-        taskId,
-      );
-      this.store.event(taskId, 'task_finalized', { candidate_id: candidateId });
-    });
+      throw Error('candidate_not_passed');
+    const report = Report.parse(JSON.parse(e.report));
+    if (
+      report.target_url !== t.config.target.url ||
+      report.evidence_scope !== 'captured_page' ||
+      !report.artifacts.actual
+    )
+      throw Error('candidate_evidence_missing');
+    // Validate persisted evidence, not the current (mutable) page or a source/build version.
+    for (const artifactId of Object.values(report.artifacts))
+      if (artifactId) await this.artifacts.read(this.getArtifact(artifactId));
+    if (t.state !== 'passed')
+      this.store.transaction(() => {
+        const current = this.task(taskId);
+        if (current.cancellation_requested_at || terminal.has(current.state))
+          throw Error('task_terminal');
+        if (
+          current.latest_candidate !== candidateId ||
+          this.store.get(
+            "SELECT id FROM evaluations WHERE task_id=? AND state IN ('queued','capturing','comparing','testing')",
+            taskId,
+          )
+        )
+          throw Error('evaluation_conflict');
+        this.store.run(
+          "UPDATE tasks SET state='passed',final_candidate=? WHERE id=?",
+          candidateId,
+          taskId,
+        );
+        this.store.event(taskId, 'task_finalized', {
+          candidate_id: candidateId,
+          evaluation_id: e.id,
+          evidence_scope: 'captured_page',
+        });
+      });
     return {
       task_id: taskId,
       state: 'passed',
       candidate_id: candidateId,
-      workspace_path:
-        this.task(taskId).config.target.mode === 'workspace'
-          ? (
-              this.task(taskId).config.target as Extract<
-                TaskConfig['target'],
-                { mode: 'workspace' }
-              >
-            ).source_dir
-          : null,
+      evaluation_id: e.id,
+      target_url: report.target_url,
+      evidence_scope: 'captured_page',
+      actual: `harness://artifacts/${report.artifacts.actual}`,
+      actual_sha256: this.getArtifact(report.artifacts.actual).sha256,
     };
-  }
-  async verifyCandidateSource(candidate: Record<string, any>) {
-    const task = this.task(candidate.task_id);
-    const source = task.config.target.mode === 'workspace' ? task.config.target.source_dir : null;
-    if (source && hash(JSON.stringify(await manifest(source))) !== candidate.source_hash)
-      throw Error('workspace_changed_during_evaluation');
   }
   async runNext(signal?: AbortSignal) {
     const job = this.store.transaction(() => {
@@ -722,7 +693,9 @@ export class TaskService {
       profile_id: t.config.profile.profile_id,
       reference_sha256: t.reference_hash as string,
       profile_sha256: hash(JSON.stringify(t.config.profile)),
-      source_manifest_hash: c.source_hash as string,
+      source_manifest_hash: null,
+      target_url: t.config.target.url,
+      evidence_scope: 'captured_page' as const,
       evaluator_version: 'leeway-0.1.0' as const,
       status: 'completed' as const,
       artifacts: { reference: t.reference_artifact as string },
@@ -753,7 +726,7 @@ export class TaskService {
               : 'runtime',
           severity: 'high',
           observed: error,
-          suggestion: '检查采集环境、候选构建和任务配置后重试',
+          suggestion: '检查目标URL是否可访问、页面状态和采集配置后重试',
           suggestion_kind: 'hypothesis',
           evidence_artifact_ids: [],
         },
@@ -767,212 +740,106 @@ export class TaskService {
       task = this.task(base.task_id),
       config = task.config,
       candidate = this.candidate(base.candidate_id);
-    await this.verifyCandidateSource(candidate);
-    let url = config.target.mode === 'external' ? config.target.url : '';
-    let service: ReturnType<typeof launch> | undefined;
-    let buildManifestHash: string | null = null;
-    try {
-      if (config.target.mode === 'workspace') {
-        state('capturing');
-        this.store.run("UPDATE candidates SET state='building' WHERE id=?", candidate.id);
-        for (const command of config.target.build) {
-          try {
-            const result = await runCommand(command, config.target.source_dir, signal);
-            const log = await this.artifact(result.stdout + '\n' + result.stderr, 'txt');
-            this.store.event(task.id, 'build_log', {
-              candidate_id: candidate.id,
-              artifact_id: log.artifact_id,
-            });
-          } catch (error) {
-            throw Error(`build_failed: ${error instanceof Error ? error.message : 'unknown'}`);
-          }
-        }
-        await this.verifyCandidateSource(candidate);
-        buildManifestHash = hash(
-          JSON.stringify(
-            await manifest(
-              config.target.mode === 'workspace' ? config.target.source_dir : '',
-              true,
-            ),
-          ),
-        );
-        const buildArtifact = await this.artifact(
-          JSON.stringify(
-            await manifest(
-              config.target.mode === 'workspace' ? config.target.source_dir : '',
-              true,
-            ),
-          ),
-          'json',
-        );
-        this.store.event(task.id, 'build_frozen', {
-          candidate_id: candidate.id,
-          artifact_id: buildArtifact.artifact_id,
-          hash: buildManifestHash,
-        });
-        const port = await freePort(),
-          command = config.target.serve;
-        service = launch(
-          process.execPath,
-          [
-            fileURLToPath(new URL('../../../../workers/service_supervisor.mjs', import.meta.url)),
-            command.executable,
-            ...command.args.map((a) => a.replaceAll('{port}', String(port))),
-          ],
-          config.target.source_dir,
-          signal,
-          {
-            PORT: String(port),
-            HOST: '127.0.0.1',
-            NODE_ENV: 'test',
-            ...sandboxEnvironment(config.sandbox),
-          },
-        );
-        url = `http://127.0.0.1:${port}${config.target.url_path}`;
-        const deadline = Date.now() + config.capture_timeout_ms;
-        while (true) {
-          signal.throwIfAborted();
-          if (service.child.exitCode !== null) throw Error('workspace_server_exited');
-          try {
-            const r = await fetch(url, {
-              signal: AbortSignal.any([signal, AbortSignal.timeout(500)]),
-            });
-            await r.body?.cancel();
-            break;
-          } catch (error) {
-            signal.throwIfAborted();
-            if (Date.now() > deadline) throw Error('server_start_timeout');
-            await delay(100, undefined, { signal });
-          }
-        }
-        this.store.run("UPDATE candidates SET state='ready' WHERE id=?", candidate.id);
-      }
-      const captured = await capture(
-        config,
-        url,
-        AbortSignal.any([
-          signal,
-          AbortSignal.timeout(config.capture_timeout_ms * (config.required_checks.length + 3)),
-        ]),
-        () => state('testing'),
-      );
-      if (service && service.child.exitCode !== null) throw Error('workspace_server_exited');
-      await this.verifyCandidateSource(candidate);
-      if (
-        hash(
-          JSON.stringify(
-            await manifest(
-              config.target.mode === 'workspace' ? config.target.source_dir : '',
-              true,
-            ),
-          ),
-        ) !== buildManifestHash
-      )
-        throw Error('build_artifact_changed_during_capture');
-      state('comparing');
-      const actual = await this.artifact(captured.png, 'png'),
-        dom = await this.artifact(JSON.stringify({ ...captured, png: undefined }), 'json');
-      const reference = this.getArtifact(task.reference_artifact),
-        refImage = await normalizeImage(await this.artifacts.read(reference)),
-        actualImage = await normalizeImage(captured.png);
-      const pixels = pixelCompare(refImage, actualImage, config.profile),
-        structure = await ssim(this.artifacts.root, reference, actual, config.profile, signal);
-      const encode = (data: Buffer) =>
-        sharp(data, { raw: { width: refImage.width, height: refImage.height, channels: 4 } })
-          .png()
-          .toBuffer();
-      const diff = await this.artifact(await encode(pixels.diff), 'png'),
-        strictDiff = await this.artifact(await encode(pixels.strict), 'png');
-      const report = scoreReport(
-        config,
-        {
-          ...base,
-          build_manifest_hash: buildManifestHash,
-          environment: captured.environment,
-          artifacts: {
-            reference: task.reference_artifact,
-            actual: actual.artifact_id,
-            diff: diff.artifact_id,
-            strict_diff: strictDiff.artifact_id,
-            dom: dom.artifact_id,
-          },
-          budget_remaining: this.remaining(task.id),
+    const url = config.target.url;
+    state('capturing');
+    const captured = await capture(
+      config,
+      url,
+      AbortSignal.any([
+        signal,
+        AbortSignal.timeout(config.capture_timeout_ms * (config.required_checks.length + 3)),
+      ]),
+      () => state('testing'),
+    );
+    state('comparing');
+    const actual = await this.artifact(captured.png, 'png'),
+      dom = await this.artifact(JSON.stringify({ ...captured, png: undefined }), 'json');
+    const reference = this.getArtifact(task.reference_artifact),
+      refImage = await normalizeImage(await this.artifacts.read(reference)),
+      actualImage = await normalizeImage(captured.png);
+    const pixels = pixelCompare(refImage, actualImage, config.profile),
+      structure = await ssim(this.artifacts.root, reference, actual, config.profile, signal);
+    const encode = (data: Buffer) =>
+      sharp(data, { raw: { width: refImage.width, height: refImage.height, channels: 4 } })
+        .png()
+        .toBuffer();
+    const diff = await this.artifact(await encode(pixels.diff), 'png'),
+      strictDiff = await this.artifact(await encode(pixels.strict), 'png');
+    const report = scoreReport(
+      config,
+      {
+        ...base,
+        build_manifest_hash: null,
+        environment: captured.environment,
+        artifacts: {
+          reference: task.reference_artifact,
+          actual: actual.artifact_id,
+          diff: diff.artifact_id,
+          strict_diff: strictDiff.artifact_id,
+          dom: dom.artifact_id,
         },
-        pixels,
-        structure,
-        captured,
-        refImage.width,
-        refImage.height,
-      );
-      report.region_metrics = regionPixels(refImage, actualImage, config.regions, config.profile);
-      for (const metric of report.region_metrics) {
-        const region = config.regions.find((r) => r.region_id === metric.region_id)!;
-        if (region.critical && metric.pixel_score < config.profile.critical_threshold) {
-          report.blockers.push(`critical_pixels:${region.region_id}`);
-          report.issues.push({
-            issue_id: `pixels_${region.region_id}`,
-            kind: 'pixel',
-            severity: 'high',
-            region_id: region.region_id,
-            reference_bbox_px: region.bbox,
-            observed: `该区域差异像素 ${(metric.difference_ratio * 100).toFixed(2)}%`,
-            suggestion: '检查该区域的文字、颜色与图片素材',
-            suggestion_kind: 'hypothesis',
-            evidence_artifact_ids: [],
-          });
-        }
-      }
-      if (report.verdict === 'pass' && report.blockers.length) {
-        report.verdict = 'needs_revision';
-        report.next_action = 'revise_and_evaluate';
-      }
-      for (const issue of report.issues)
-        issue.evidence_artifact_ids = [actual.artifact_id, diff.artifact_id, dom.artifact_id];
-      const previousRow = this.store.get(
-        "SELECT report FROM evaluations WHERE task_id=? AND state='completed' AND id<>? ORDER BY created_at DESC,rowid DESC LIMIT 1",
-        task.id,
-        evaluationId,
-      );
-      let previous:
-        | { report: EvaluationReport; actual: Awaited<ReturnType<typeof normalizeImage>> }
-        | undefined;
-      if (previousRow) {
-        const older = Report.parse(JSON.parse(previousRow.report));
-        if (older.artifacts.actual)
-          previous = {
-            report: older,
-            actual: await normalizeImage(
-              await this.artifacts.read(this.getArtifact(older.artifacts.actual)),
-            ),
-          };
-      }
-      report.schema_version = '1.1';
-      report.visual_feedback = await buildFeedback({
-        reference: refImage,
-        actual: actualImage,
-        pixels,
-        config,
-        report,
-        dom: captured.dom_evidence,
-        previous,
-        put: async (bytes) => (await this.artifact(bytes, 'png')).artifact_id,
-      });
-      return Report.parse(report);
-    } catch (error) {
-      if (config.target.mode === 'workspace')
-        this.store.run("UPDATE candidates SET state='invalid' WHERE id=?", candidate.id);
-      throw error;
-    } finally {
-      if (service) {
-        await service.stop();
-        await service.done.catch(() => {});
-        const logs = service.logs();
-        if (logs.stdout || logs.stderr) {
-          const a = await this.artifact(logs.stdout + '\n' + logs.stderr, 'txt');
-          this.store.event(task.id, 'server_log', { artifact_id: a.artifact_id });
-        }
+        budget_remaining: this.remaining(task.id),
+      },
+      pixels,
+      structure,
+      captured,
+      refImage.width,
+      refImage.height,
+    );
+    report.region_metrics = regionPixels(refImage, actualImage, config.regions, config.profile);
+    for (const metric of report.region_metrics) {
+      const region = config.regions.find((r) => r.region_id === metric.region_id)!;
+      if (region.critical && metric.pixel_score < config.profile.critical_threshold) {
+        report.blockers.push(`critical_pixels:${region.region_id}`);
+        report.issues.push({
+          issue_id: `pixels_${region.region_id}`,
+          kind: 'pixel',
+          severity: 'high',
+          region_id: region.region_id,
+          reference_bbox_px: region.bbox,
+          observed: `该区域差异像素 ${(metric.difference_ratio * 100).toFixed(2)}%`,
+          suggestion: '检查该区域的文字、颜色与图片素材',
+          suggestion_kind: 'hypothesis',
+          evidence_artifact_ids: [],
+        });
       }
     }
+    if (report.verdict === 'pass' && report.blockers.length) {
+      report.verdict = 'needs_revision';
+      report.next_action = 'revise_and_evaluate';
+    }
+    for (const issue of report.issues)
+      issue.evidence_artifact_ids = [actual.artifact_id, diff.artifact_id, dom.artifact_id];
+    const previousRow = this.store.get(
+      "SELECT report FROM evaluations WHERE task_id=? AND state='completed' AND id<>? ORDER BY created_at DESC,rowid DESC LIMIT 1",
+      task.id,
+      evaluationId,
+    );
+    let previous:
+      | { report: EvaluationReport; actual: Awaited<ReturnType<typeof normalizeImage>> }
+      | undefined;
+    if (previousRow) {
+      const older = Report.parse(JSON.parse(previousRow.report));
+      if (older.artifacts.actual)
+        previous = {
+          report: older,
+          actual: await normalizeImage(
+            await this.artifacts.read(this.getArtifact(older.artifacts.actual)),
+          ),
+        };
+    }
+    report.schema_version = '1.1';
+    report.visual_feedback = await buildFeedback({
+      reference: refImage,
+      actual: actualImage,
+      pixels,
+      config,
+      report,
+      dom: captured.dom_evidence,
+      previous,
+      put: async (bytes) => (await this.artifact(bytes, 'png')).artifact_id,
+    });
+    return Report.parse(report);
   }
   private afterEvaluation(taskId: string, report: EvaluationReport) {
     const t = this.task(taskId),
@@ -1021,15 +888,4 @@ export class TaskService {
   close() {
     this.store.close();
   }
-}
-async function freePort() {
-  return new Promise<number>((resolve, reject) => {
-    const server = createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      const port = typeof address === 'object' && address ? address.port : 0;
-      server.close((error) => (error ? reject(error) : resolve(port)));
-    });
-  });
 }

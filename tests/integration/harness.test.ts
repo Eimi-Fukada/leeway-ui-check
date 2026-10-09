@@ -4,8 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { TaskService } from '../../packages/core/src/tasks/service.js';
 import { TaskInput, type TaskConfig } from '../../packages/contracts/src/index.js';
-import { makeFixture, fixtureHtml, type Variant } from '../../scripts/fixtures.js';
-import { CommandAgentAdapter, runController } from '../../packages/core/src/controller/loop.js';
+import { makeFixture, fixtureHtml, closeFixtures, type Variant } from '../../scripts/fixtures.js';
 import { createMcpServer } from '../../packages/mcp/src/server.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -17,7 +16,10 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     config = await makeFixture(root);
     service = new TaskService(path.join(root, 'store'));
   });
-  afterAll(() => service.close());
+  afterAll(async () => {
+    service.close();
+    await closeFixtures();
+  });
   async function evaluate(variant: Variant, override: Partial<TaskConfig> = {}) {
     const c = TaskInput.parse({ ...config, ...override });
     await writeFile(path.join(root, 'target/index.html'), fixtureHtml(variant));
@@ -37,22 +39,24 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     expect(evaluation.report?.metrics?.ssim).toBe(1);
     expect(evaluation.report?.blockers).toEqual(['profile_not_validated']);
     await expect(service.finalizeTask(task.task_id, candidate.candidate_id)).rejects.toThrow(
-      'candidate_not_deliverable',
+      'candidate_not_passed',
     );
     const replay = service.evaluateCandidate(candidate.candidate_id, 'request');
     expect(replay.evaluation_id).toBe(evaluation.evaluation_id);
     expect(service.task(task.task_id).iterations).toBe(1);
   });
-  it('rejects a workspace change made after submission', async () => {
+  it('observes URL content after submission without reading or freezing target source', async () => {
     await writeFile(path.join(root, 'target/index.html'), fixtureHtml('shift'));
     const task = await service.createTask(config),
-      candidate = await service.registerCandidate(task.task_id);
+      queued = await service.submitCandidate(task.task_id, 'mutable-url');
     await writeFile(path.join(root, 'target/index.html'), fixtureHtml('exact'));
-    const queued = service.evaluateCandidate(candidate.candidate_id, 'shift');
     await service.runNext();
     const report = service.getEvaluation(queued.evaluation_id!).report!;
-    expect(report.score).toBeNull();
-    expect(report.blockers).toContain('workspace_changed_during_evaluation');
+    expect(report.score?.value).toBe(100);
+    expect(report.source_manifest_hash).toBeNull();
+    expect(report.build_manifest_hash).toBeNull();
+    expect(report.target_url).toBe(config.target.url);
+    expect(report.evidence_scope).toBe('captured_page');
   });
   it.each([
     'blank',
@@ -115,7 +119,7 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     expect(service.task(task.task_id).state).toBe('budget_exhausted');
     expect(service.getEvaluation(queued.evaluation_id!).report?.verdict).not.toBe('pass');
   });
-  it('cancels in flight and only settles after the workspace evaluation is cleaned up', async () => {
+  it('cancels in flight and only settles after the browser evaluation is cleaned up', async () => {
     await writeFile(path.join(root, 'target/index.html'), fixtureHtml('animation'));
     const task = await service.createTask(config),
       candidate = await service.registerCandidate(task.task_id),
@@ -126,22 +130,30 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     await running;
     expect(service.task(task.task_id).state).toBe('cancelled');
     expect(service.getEvaluation(queued.evaluation_id!).state).toBe('cancelled');
+    expect((await fetch(config.target.url)).ok).toBe(true); // evaluator never owns this server
   });
-  it('rejects profile tampering and changed workspace provenance', async () => {
+  it('rejects profile tampering and target-startup inputs', async () => {
     await expect(
       service.createTask({
         ...config,
         profile: { ...config.profile, pixel: { ...config.profile.pixel, threshold: 0.9 } },
       }),
     ).rejects.toThrow('profile_id_immutable');
-    const task = await service.createTask(config),
-      candidate = await service.registerCandidate(task.task_id);
-    await writeFile(path.join(root, 'target/index.html'), 'tampered');
-    const queued = service.evaluateCandidate(candidate.candidate_id, 'tamper');
-    await service.runNext();
-    expect(service.getEvaluation(queued.evaluation_id!).error).toContain(
-      'workspace_changed_during_evaluation',
-    );
+    expect(() =>
+      TaskInput.parse({
+        ...config,
+        target: { mode: 'workspace', source_dir: root, serve: { executable: 'node', args: [] } },
+      }),
+    ).toThrow();
+    expect(() =>
+      TaskInput.parse({
+        ...config,
+        target: { ...config.target, serve: { executable: 'node', args: [] } },
+      }),
+    ).toThrow();
+    expect(() =>
+      TaskInput.parse({ ...config, target: { ...config.target, url: 'file:///secret' } }),
+    ).toThrow();
   });
   it('exposes structured MCP responses, excludes owner creation and guards artifact paths', async () => {
     const server = createMcpServer(service),
@@ -168,34 +180,7 @@ describe('real Chromium + SQLite + Python pipeline', () => {
       await server.close();
     }
   });
-  it('runs two actual command-adapter source revisions, captures both, and stops on budget', async () => {
-    const script = path.join(root, 'fixture-agent.mjs');
-    await writeFile(
-      script,
-      `import {readFile,writeFile} from 'node:fs/promises';let input='';for await(const c of process.stdin)input+=c;const {attempt}=JSON.parse(input);let html=await readFile('index.html','utf8');html=html.replace(/translateY\\(\\d+px\\)/,'translateY('+(attempt===1?8:0)+'px)');await writeFile('index.html',html);console.log('revised '+attempt);`,
-    );
-    await writeFile(path.join(root, 'target/index.html'), fixtureHtml('shift'));
-    const task = await service.createTask({
-      ...config,
-      budget: { max_iterations: 2, max_wall_seconds: 90 },
-    });
-    await runController(
-      service,
-      task.task_id,
-      new CommandAgentAdapter({
-        command: { executable: process.execPath, args: [script] },
-        attempt_timeout_seconds: 10,
-      }),
-    );
-    const status = service.getTaskStatus(task.task_id);
-    expect(status.state).toBe('budget_exhausted');
-    expect(status.evaluations).toHaveLength(2);
-    expect(status.evaluations[1].report!.score!.value).toBe(100);
-    expect(status.evaluations[0].report!.source_manifest_hash).not.toBe(
-      status.evaluations[1].report!.source_manifest_hash,
-    );
-  });
-  it('requires owner evidence, finalizes the exact build, and preserves subsequent user edits', async () => {
+  it('requires calibration evidence and finalizes only captured evidence without touching the live target', async () => {
     const calibration = await service.artifact(
         JSON.stringify({ purpose: 'state-machine-test-only', split: 'calibration' }),
         'json',
@@ -216,7 +201,7 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     };
     const { task, candidate, evaluation } = await evaluate('exact', { profile });
     expect(evaluation.report?.verdict).toBe('pass');
-    expect(evaluation.report?.build_manifest_hash).toBeTruthy();
+    expect(evaluation.report?.build_manifest_hash).toBeNull();
     const final = await service.finalizeTask(task.task_id, candidate.candidate_id);
     expect(final.state).toBe('passed');
     await writeFile(path.join(root, 'target/index.html'), 'user edits after passing capture');
@@ -226,9 +211,13 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     expect(service.task(task.task_id).best_candidate).toBe(candidate.candidate_id);
     const other = await evaluate('exact', { profile });
     await writeFile(path.join(root, 'target/injected-build.js'), 'different delivered build');
-    await expect(
-      service.finalizeTask(other.task.task_id, other.candidate.candidate_id),
-    ).rejects.toThrow('build_artifact_hash_mismatch');
+    const delivery = await service.finalizeTask(other.task.task_id, other.candidate.candidate_id);
+    expect(delivery.evidence_scope).toBe('captured_page');
+    expect(delivery.target_url).toBe(config.target.url);
+    expect(delivery.actual_sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(await service.finalizeTask(other.task.task_id, other.candidate.candidate_id)).toEqual(
+      delivery,
+    );
   });
   it('reclaims an expired worker lease and increments fencing without double counting', async () => {
     await writeFile(path.join(root, 'target/index.html'), fixtureHtml('exact'));
@@ -248,19 +237,17 @@ describe('real Chromium + SQLite + Python pipeline', () => {
         .fence_token,
     ).toBe(2);
   });
-  it('returns auth_required, build_failed and exhausted wall time with null scores', async () => {
-    const workspace = config.target as Extract<TaskConfig['target'], { mode: 'workspace' }>;
-    const auth = await evaluate('exact', { target: { ...workspace, url_path: '/private' } });
+  it('returns auth_required, inaccessible URL and exhausted wall time with null scores', async () => {
+    const auth = await evaluate('exact', {
+      target: { ...config.target, url: config.target.url + '/private' },
+    });
     expect(auth.evaluation.error).toContain('auth_required');
     expect(auth.evaluation.report?.score).toBeNull();
-    const build = await evaluate('exact', {
-      target: {
-        ...workspace,
-        build: [{ executable: process.execPath, args: ['-e', 'process.exit(2)'] }],
-      },
+    const unavailable = await evaluate('exact', {
+      target: { ...config.target, url: 'http://127.0.0.1:1' },
     });
-    expect(build.evaluation.error).toContain('build_failed');
-    expect(build.evaluation.report?.score).toBeNull();
+    expect(unavailable.evaluation.state).toBe('failed');
+    expect(unavailable.evaluation.report?.score).toBeNull();
     const wall = await evaluate('animation', {
       budget: { max_iterations: 8, max_wall_seconds: 1 },
     });

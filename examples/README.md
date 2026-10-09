@@ -16,6 +16,6 @@
 
 ## 接入自己的页面
 
-[task.template.json](task.template.json) 是内部 TaskInput 的完整参考，不依赖先运行 Demo。公开 CLI/MCP 统一使用 ui_check_start，输入示例见 [使用指南](../guides/usage.md)；不要将完整内部模板直接作为 start 输入。按真实项目提供源码目录、viewport、serve/build 和区域/交互要求。
+[task.template.json](task.template.json) 是内部 TaskInput 的完整参考，不依赖先运行 Demo。公开 CLI/MCP 统一使用 ui_check_start，输入示例见 [使用指南](../guides/usage.md)；不要将完整内部模板直接作为 start 输入。由 Codex 启动实际项目后，提供 URL、viewport 和区域/交互要求。
 
 截图本身不能确定真实DOM和交互，模板不会自动恢复这些信息。完整说明见 [使用指南](../guides/usage.md)。

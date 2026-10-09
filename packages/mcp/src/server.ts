@@ -13,7 +13,7 @@ export function createMcpServer(service: TaskService) {
   );
   const workflow = new UiWorkflow(service);
   for (const [name, definition] of Object.entries(toolDefinitions)) {
-    server.registerTool(
+    const registered = server.registerTool(
       name,
       {
         description: definition.description,
@@ -40,6 +40,10 @@ export function createMcpServer(service: TaskService) {
         }
       },
     );
+    // SDK 1.x rebuilds raw shapes with strip semantics. Keep the shared strict contracts
+    // so unsupported target build/start inputs are rejected identically in CLI and MCP.
+    registered.inputSchema = definition.input;
+    registered.outputSchema = definition.output;
   }
   server.registerResource(
     'evaluation-report',

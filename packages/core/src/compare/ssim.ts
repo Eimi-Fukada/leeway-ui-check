@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runCommand } from '../candidates/process.js';
+import { runCommand } from '../runtime/subprocess.js';
 import type { EvaluationProfile } from '../../../contracts/src/index.js';
 const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 export const pythonPath = () =>

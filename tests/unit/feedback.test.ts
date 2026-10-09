@@ -101,10 +101,9 @@ it('tracks split/merged regions on equal-area unions and rejects incompatible hi
       confirmed: true,
     },
     target: {
-      mode: 'workspace',
-      source_dir: 'target',
+      mode: 'external',
+      url: 'http://localhost:4173',
       ready_selector: 'body',
-      serve: { executable: 'node', args: [] },
     },
     regions: [],
     required_checks: [],

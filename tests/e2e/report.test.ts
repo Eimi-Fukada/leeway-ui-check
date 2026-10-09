@@ -1,3 +1,6 @@
+import { afterAll } from 'vitest';
+import { closeFixtures } from '../../scripts/fixtures.js';
+afterAll(closeFixtures);
 import { it, expect } from 'vitest';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';

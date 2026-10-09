@@ -19,10 +19,9 @@ const config = TaskInput.parse({
     confirmed: true,
   },
   target: {
-    mode: 'workspace',
-    source_dir: 'target',
+    mode: 'external',
+    url: 'http://localhost:4173',
     ready_selector: 'body',
-    serve: { executable: 'node', args: ['server.mjs'] },
   },
   profile: {
     ...defaultProfile,
@@ -119,13 +118,13 @@ describe('deterministic acceptance gates', () => {
     expect(report.score!.value.toFixed(1)).toBe('90.0');
     expect(report.verdict).toBe('needs_revision');
   });
-  it('blocks external URL provenance and unconfirmed reference', () => {
+  it('accepts URL evaluation without source attestation and blocks unconfirmed reference', () => {
     expect(
       score({
         ...config,
         target: { mode: 'external', url: 'http://localhost:4173', ready_selector: 'body' },
       }).blockers,
-    ).toContain('source_provenance_unverified');
+    ).not.toContain('source_provenance_unverified');
     expect(
       score({ ...config, reference: { ...config.reference, confirmed: false } }).score,
     ).toBeNull();

@@ -15,15 +15,9 @@
     "confirmed": true
   },
   "target": {
-    "mode": "workspace",
-    "source_dir": "REPLACE_SOURCE_ABSOLUTE_PATH",
-    "ready_selector": "[data-page-ready]",
-    "build": [],
-    "serve": {
-      "executable": "REPLACE_NODE_EXECUTABLE_ABSOLUTE_PATH",
-      "args": ["server.mjs", "{port}"]
-    },
-    "url_path": "/"
+    "mode": "external",
+    "url": "http://127.0.0.1:3000/REPLACE_PAGE_PATH",
+    "ready_selector": "body"
   },
   "profile": {
     "profile_id": "mobile-provisional-v1",

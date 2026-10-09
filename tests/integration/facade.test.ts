@@ -1,3 +1,6 @@
+import { afterAll } from 'vitest';
+import { closeFixtures } from '../../scripts/fixtures.js';
+afterAll(closeFixtures);
 import { it, expect } from 'vitest';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
@@ -7,7 +10,7 @@ import { makeFixture } from '../../scripts/fixtures.js';
 import { createMcpServer } from '../../packages/mcp/src/server.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-it('serializes workspace submissions, replays requests, waits without consuming jobs, and resumes after worker completes', async () => {
+it('serializes URL submissions, replays requests, waits without consuming jobs, and resumes after worker completes', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'leeway-facade-'));
   const config = await makeFixture(root);
   const service = new TaskService(path.join(root, 'store')),
@@ -89,14 +92,10 @@ it('creates a run from a reference image and project inputs through ui_check_sta
       name: 'ui_check_start',
       arguments: {
         reference_image_path: config.reference_path,
-        source_dir: config.target.mode === 'workspace' ? config.target.source_dir : '',
+        target_url: config.target.url,
         viewport_width: 960,
         viewport_height: 640,
         ready_selector: '[data-page-ready]',
-        serve:
-          config.target.mode === 'workspace'
-            ? config.target.serve
-            : { executable: 'node', args: [] },
       },
     });
     expect((result.structuredContent as any).run_id).toMatch(/^task_/);
@@ -109,10 +108,9 @@ it('creates a run from a reference image and project inputs through ui_check_sta
     service.close();
   }
 });
-it('evaluates workspace mode in place without copying the source workspace', async () => {
+it('evaluates an externally owned URL without reading or copying source', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'leeway-workspace-')),
     config = await makeFixture(root);
-  config.target = { ...config.target, mode: 'workspace' } as typeof config.target;
   const service = new TaskService(path.join(root, 'store')),
     worker = new TaskService(service.root);
   try {

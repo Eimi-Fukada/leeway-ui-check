@@ -6,10 +6,11 @@ import {
   Report,
   TaskInput,
   defaultProfile,
+  WebUrl,
 } from '../../../contracts/src/index.js';
 import { TaskService } from '../tasks/service.js';
 
-export const workflowInstructions = `Use ui_check_start once, then edit and ui_check_submit each new version with a new request_id. Retry the same submission with the same ID. If evaluating, poll ui_check_status. If needs_revision, read crop images, fix code and resubmit without asking the user to continue. Only finalize a verified passing result. Stop on cancellation, exhausted budget, stalled progress, or required configuration review. Never change reference or acceptance rules to pass.`;
+export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images, fix code and resubmit without asking the user to continue. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. Never change acceptance rules to pass.`;
 const ResponsiveInput = z
   .object({
     required: z.boolean().default(false),
@@ -20,19 +21,11 @@ const ResponsiveInput = z
 export const StartInput = z
   .object({
     reference_image_path: z.string().min(1),
-    source_dir: z.string().min(1),
+    target_url: WebUrl,
     viewport_width: z.number().int().positive().max(8192),
     viewport_height: z.number().int().positive().max(8192),
     device_scale_factor: z.number().positive().max(4).default(1),
-    ready_selector: z.string().min(1).default('[data-page-ready]'),
-    serve: z
-      .object({ executable: z.string().min(1), args: z.array(z.string()).default([]) })
-      .strict(),
-    build: z
-      .array(
-        z.object({ executable: z.string().min(1), args: z.array(z.string()).default([]) }).strict(),
-      )
-      .default([]),
+    ready_selector: z.string().min(1).default('body'),
     regions: z.array(Region).default([]),
     required_checks: z.array(Check).default([]),
     responsive: ResponsiveInput.optional(),
@@ -121,7 +114,7 @@ export const toolDefinitions = {
     input: z.object({ run_id: Id }).strict(),
     output: AgentStatus,
     description:
-      'Finish only a verified passing version. Server validates evidence and source identity; a submitted or high-scoring version alone is not complete.',
+      'Finish only a verified passing version. Server validates the latest captured evidence; it does not attest source code or future URL content; a submitted or high-scoring version alone is not complete.',
   },
 } as const;
 export type ToolName = keyof typeof toolDefinitions;
@@ -163,12 +156,9 @@ export class UiWorkflow {
             confirmed: true,
           },
           target: {
-            mode: 'workspace' as const,
-            source_dir: input.source_dir,
+            mode: 'external' as const,
+            url: input.target_url,
             ready_selector: input.ready_selector,
-            build: input.build,
-            serve: input.serve,
-            url_path: '/',
           },
           profile,
           regions: input.regions,

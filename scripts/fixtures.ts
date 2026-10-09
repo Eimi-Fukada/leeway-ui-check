@@ -1,6 +1,18 @@
-import { mkdir, copyFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createServer } from 'node:http';
+import { createServer, type Server } from 'node:http';
+const fixtureServers: Server[] = [];
+export async function closeFixtures() {
+  await Promise.all(
+    fixtureServers.splice(0).map(
+      (server) =>
+        new Promise<void>((resolve) => {
+          server.closeAllConnections();
+          server.close(() => resolve());
+        }),
+    ),
+  );
+}
 import { capture } from '../packages/core/src/capture/runner.js';
 import { defaultProfile, TaskInput, type TaskConfig } from '../packages/contracts/src/index.js';
 export type Variant =
@@ -35,8 +47,38 @@ export function fixtureHtml(variant: Variant = 'exact') {
 export async function makeFixture(root: string) {
   const source = path.join(root, 'target');
   await mkdir(source, { recursive: true });
-  await copyFile('evals/fixtures/server.mjs', path.join(source, 'server.mjs'));
   await writeFile(path.join(source, 'index.html'), fixtureHtml());
+  // Test infrastructure owns this server. The evaluator only receives its URL.
+  const server = createServer(async (req, res) => {
+    if (req.url === '/private') {
+      res.writeHead(401);
+      res.end('auth required');
+      return;
+    }
+    if (req.url === '/missing.png' || req.url === '/missing.woff2') {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    try {
+      const image = req.url === '/reference.png';
+      res.setHeader('Content-Type', image ? 'image/png' : 'text/html');
+      res.end(
+        await readFile(
+          image ? path.join(source, 'reference.png') : path.join(source, 'index.html'),
+        ),
+      );
+    } catch {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  server.unref();
+  fixtureServers.push(server);
+  const address = server.address();
+  if (!address || typeof address === 'string') throw Error('no_port');
+  const url = `http://127.0.0.1:${address.port}`;
   const config = TaskInput.parse({
     schema_version: '1.0',
     reference_path: path.join(root, 'reference.png'),
@@ -47,14 +89,7 @@ export async function makeFixture(root: string) {
       scroll: { x: 0, y: 0 },
       confirmed: true,
     },
-    target: {
-      mode: 'workspace',
-      source_dir: source,
-      ready_selector: '[data-page-ready]',
-      build: [],
-      serve: { executable: process.execPath, args: ['server.mjs', '{port}'] },
-      url_path: '/',
-    },
+    target: { mode: 'external', url, ready_selector: '[data-page-ready]' },
     profile: defaultProfile,
     regions: [
       {
@@ -97,24 +132,8 @@ export async function makeFixture(root: string) {
     budget: { max_iterations: 8, max_wall_seconds: 300 },
     capture_timeout_ms: 3000,
   });
-  const server = createServer((_req, res) => {
-    res.setHeader('Content-Type', 'text/html');
-    res.end(fixtureHtml());
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  try {
-    const address = server.address();
-    if (!address || typeof address === 'string') throw Error('no_port');
-    const reference = await capture(
-      config,
-      `http://127.0.0.1:${address.port}`,
-      AbortSignal.timeout(15000),
-      () => {},
-    );
-    await writeFile(config.reference_path, reference.png);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  const reference = await capture(config, url, AbortSignal.timeout(15000), () => {});
+  await writeFile(config.reference_path, reference.png);
   await writeFile(path.join(root, 'task.json'), JSON.stringify(config, null, 2));
   return config;
 }

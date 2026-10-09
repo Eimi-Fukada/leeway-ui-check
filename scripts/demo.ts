@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { TaskService } from '../packages/core/src/tasks/service.js';
-import { fixtureHtml, makeFixture, type Variant } from './fixtures.js';
+import { fixtureHtml, makeFixture, closeFixtures, type Variant } from './fixtures.js';
 const root = path.resolve('.demo', new Date().toISOString().replaceAll(/[:.]/g, '-'));
 await mkdir(root, { recursive: true });
 const config = await makeFixture(root);
@@ -36,4 +36,5 @@ try {
   );
 } finally {
   service.close();
+  await closeFixtures();
 }

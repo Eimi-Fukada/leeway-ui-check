@@ -118,31 +118,20 @@ export const Profile = z
         message: 'pixel_diagnostic is provisional with zero layout/text weights',
       });
   });
-export const Command = z
-  .object({ executable: z.string().min(1), args: z.array(z.string()).default([]) })
+export const WebUrl = z
+  .string()
+  .url()
+  .refine(
+    (value) => ['http:', 'https:'].includes(new URL(value).protocol),
+    'target URL must use HTTP or HTTPS',
+  );
+export const Target = z
+  .object({
+    mode: z.literal('external'),
+    url: WebUrl,
+    ready_selector: z.string().min(1).default('body'),
+  })
   .strict();
-export const Target = z.discriminatedUnion('mode', [
-  z
-    .object({
-      mode: z.literal('external'),
-      url: z.string().url(),
-      ready_selector: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      mode: z.literal('workspace'),
-      source_dir: z.string().min(1),
-      ready_selector: z.string().min(1),
-      build: z.array(Command).default([]),
-      serve: Command,
-      url_path: z.string().startsWith('/').default('/'),
-      asset_extensions: z
-        .array(z.string())
-        .default(['.png', '.jpg', '.jpeg', '.svg', '.webp', '.woff', '.woff2']),
-    })
-    .strict(),
-]);
 export const TaskInput = z
   .object({
     schema_version: z.literal('1.0'),
@@ -186,24 +175,6 @@ export const TaskInput = z
       })
       .strict()
       .default({ required: false, probe_widths: [], max_horizontal_overflow_px: 0 }),
-    sandbox: z
-      .object({
-        enabled: z.boolean().default(false),
-        network: z.enum(['disabled', 'loopback', 'inherit']).default('loopback'),
-        max_memory_mb: z.number().int().positive().default(2048),
-        max_cpu_seconds: z.number().int().positive().default(600),
-        max_processes: z.number().int().positive().default(128),
-        read_only_source: z.boolean().default(true),
-      })
-      .strict()
-      .default({
-        enabled: false,
-        network: 'loopback',
-        max_memory_mb: 2048,
-        max_cpu_seconds: 600,
-        max_processes: 128,
-        read_only_source: true,
-      }),
   })
   .strict()
   .superRefine((t, c) => {
@@ -293,7 +264,9 @@ export const Report = z
     profile_id: Id,
     reference_sha256: Hash,
     profile_sha256: Hash,
-    source_manifest_hash: Hash,
+    source_manifest_hash: Hash.nullable().default(null), // legacy reports only
+    target_url: WebUrl.optional(),
+    evidence_scope: z.literal('captured_page').optional(),
     evaluator_version: z.literal('leeway-0.1.0'),
     build_manifest_hash: Hash.nullable().default(null),
     status: z.enum(['completed', 'failed', 'cancelled']),

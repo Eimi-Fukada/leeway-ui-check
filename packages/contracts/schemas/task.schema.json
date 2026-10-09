@@ -111,119 +111,27 @@
           "additionalProperties": false
         },
         "target": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "mode": {
-                  "type": "string",
-                  "const": "external"
-                },
-                "url": {
-                  "type": "string",
-                  "format": "uri"
-                },
-                "ready_selector": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "mode",
-                "url",
-                "ready_selector"
-              ],
-              "additionalProperties": false
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "external"
             },
-            {
-              "type": "object",
-              "properties": {
-                "mode": {
-                  "type": "string",
-                  "const": "workspace"
-                },
-                "source_dir": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "ready_selector": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "build": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "executable": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "args": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "default": []
-                      }
-                    },
-                    "required": [
-                      "executable"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "default": []
-                },
-                "serve": {
-                  "type": "object",
-                  "properties": {
-                    "executable": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "args": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "default": []
-                    }
-                  },
-                  "required": [
-                    "executable"
-                  ],
-                  "additionalProperties": false
-                },
-                "url_path": {
-                  "type": "string",
-                  "pattern": "^\\/",
-                  "default": "/"
-                },
-                "asset_extensions": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "default": [
-                    ".png",
-                    ".jpg",
-                    ".jpeg",
-                    ".svg",
-                    ".webp",
-                    ".woff",
-                    ".woff2"
-                  ]
-                }
-              },
-              "required": [
-                "mode",
-                "source_dir",
-                "ready_selector",
-                "serve"
-              ],
-              "additionalProperties": false
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "ready_selector": {
+              "type": "string",
+              "minLength": 1,
+              "default": "body"
             }
-          ]
+          },
+          "required": [
+            "mode",
+            "url"
+          ],
+          "additionalProperties": false
         },
         "profile": {
           "type": "object",
@@ -720,52 +628,6 @@
             "required": false,
             "probe_widths": [],
             "max_horizontal_overflow_px": 0
-          }
-        },
-        "sandbox": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": false
-            },
-            "network": {
-              "type": "string",
-              "enum": [
-                "disabled",
-                "loopback",
-                "inherit"
-              ],
-              "default": "loopback"
-            },
-            "max_memory_mb": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "default": 2048
-            },
-            "max_cpu_seconds": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "default": 600
-            },
-            "max_processes": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "default": 128
-            },
-            "read_only_source": {
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false,
-          "default": {
-            "enabled": false,
-            "network": "loopback",
-            "max_memory_mb": 2048,
-            "max_cpu_seconds": 600,
-            "max_processes": 128,
-            "read_only_source": true
           }
         }
       },

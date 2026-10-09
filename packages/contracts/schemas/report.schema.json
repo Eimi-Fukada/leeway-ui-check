@@ -428,8 +428,24 @@
           "pattern": "^[a-f0-9]{64}$"
         },
         "source_manifest_hash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "target_url": {
           "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "format": "uri"
+        },
+        "evidence_scope": {
+          "type": "string",
+          "const": "captured_page"
         },
         "evaluator_version": {
           "type": "string",
@@ -904,7 +920,6 @@
         "profile_id",
         "reference_sha256",
         "profile_sha256",
-        "source_manifest_hash",
         "evaluator_version",
         "status",
         "verdict",
