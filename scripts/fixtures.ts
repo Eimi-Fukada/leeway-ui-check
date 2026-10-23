@@ -2,6 +2,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createServer, type Server } from 'node:http';
 const fixtureServers: Server[] = [];
+/**
+ * 关闭测试/演示侧拥有的 HTTP 服务及连接；不属于 Harness 的目标项目管理功能。
+ */
 export async function closeFixtures() {
   await Promise.all(
     fixtureServers.splice(0).map(
@@ -28,6 +31,9 @@ export type Variant =
   | 'unusable'
   | 'animation'
   | 'screenshot';
+/**
+ * 生成固定页面或预设错误变体，供像素、文字、资源、交互和稳定性测试使用。
+ */
 export function fixtureHtml(variant: Variant = 'exact') {
   if (variant === 'blank') return '<html><body data-page-ready></body></html>';
   if (variant === 'screenshot')
@@ -44,6 +50,10 @@ export function fixtureHtml(variant: Variant = 'exact') {
   ${variant === 'broken_image' ? '<img src="/missing.png" style="position:absolute;left:30px;top:250px;width:100px;height:80px">' : ''}
   <dialog><h2>Weekly report</h2><button onclick="this.closest('dialog').close()">Close</button></dialog></div><script>document.querySelector('.action')?.addEventListener('click',()=>document.querySelector('dialog').showModal());${variant === 'animation' ? "let n=0;setInterval(()=>{document.querySelector('.page').style.background='hsl('+(++n%360)+' 70% 80%)';document.querySelector('h1').textContent='Frame '+n},31)" : ''}</script></body></html>`;
 }
+/**
+ * 在临时目录生成测试页面和参考图，并由测试侧启动独立 URL 服务，返回可评测配置。
+ * 数据只验证工程链路，不代表真实产品评分校准。
+ */
 export async function makeFixture(root: string) {
   const source = path.join(root, 'target');
   await mkdir(source, { recursive: true });

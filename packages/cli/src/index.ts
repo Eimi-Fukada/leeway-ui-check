@@ -3,6 +3,7 @@ import { TaskService } from '../../core/src/tasks/service.js';
 import { UiWorkflow, toolDefinitions } from '../../core/src/workflow/facade.js';
 import { runWorker } from '../../core/src/workflow/worker.js';
 import { startReportServer } from '../../core/src/reports/server.js';
+// 五个同名操作读取 JSON 文件或 stdin，调用与 MCP 相同的 UiWorkflow。
 const [command, ...args] = process.argv.slice(2);
 const abort = new AbortController();
 process.once('SIGINT', () => abort.abort());

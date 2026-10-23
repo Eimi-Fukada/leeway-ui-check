@@ -1,4 +1,5 @@
 import { handleHook, type HookEvent } from './hooks.js';
+// Codex 将生命周期事件写入 stdin；stdout 只输出宿主可解析的 hook 决策 JSON。
 let input = '';
 try {
   for await (const chunk of process.stdin) {

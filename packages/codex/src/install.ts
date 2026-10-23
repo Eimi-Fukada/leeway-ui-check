@@ -4,6 +4,10 @@ import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 import os from 'node:os';
 
 // Produce concrete project-local wiring; never edit global Codex config or remove other hooks.
+/**
+ * 为目标项目安装 Skill 和本机路径对应的 hooks.json，合并其他 hooks 并避免重复安装。
+ * 只写项目级文件，hook 使用 Harness 的运行时与数据目录；宿主仍需信任该配置。
+ */
 export async function installCodexWorkflow(
   projectDir: string,
   harnessHome = process.env.HARNESS_HOME ?? path.join(os.homedir(), '.leeway-ui-check'),

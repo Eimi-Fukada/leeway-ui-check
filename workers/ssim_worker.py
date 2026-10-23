@@ -10,6 +10,7 @@ from skimage.metrics import structural_similarity
 
 Image.MAX_IMAGE_PIXELS = 32_000_000
 
+# 读取指定存储目录内的图像，复核内容哈希并转换为 uint8 RGB 像素。
 def load(item, root):
     file = Path(item['path']).resolve()
     if not file.is_relative_to(root):
@@ -22,6 +23,7 @@ def load(item, root):
             raise ValueError('pixel_limit_exceeded')
         return np.array(image.convert('RGB'), dtype=np.uint8)
 
+# 根据请求计算 SSIM；剔除遮罩影响邻域和图像边缘，返回有效像素的均值。
 def evaluate(request):
     root = Path(request['artifact_root']).resolve()
     a, b = load(request['reference'], root), load(request['actual'], root)

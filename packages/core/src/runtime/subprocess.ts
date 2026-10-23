@@ -1,4 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+/**
+ * 回收 Harness 子进程及其进程树，避免取消或超时后计算进程残留。
+ */
 export async function killTree(child: ChildProcess) {
   if (!child.pid || child.exitCode !== null) return;
   if (process.platform === 'win32')
@@ -30,6 +33,10 @@ export async function killTree(child: ChildProcess) {
     });
   }
 }
+/**
+ * 不经过 shell 启动 Harness 子进程，限制继承环境与日志长度，返回等待、日志和终止句柄。
+ * 目前用于 SSIM 计算，不负责启动用户项目。
+ */
 export function launch(
   executable: string,
   args: string[],
@@ -71,6 +78,9 @@ export function launch(
   void done.catch(() => {});
   return { child, done, logs: () => ({ stdout, stderr }), stop: () => killTree(child) };
 }
+/**
+ * 仅继承子进程正常运行所需的系统环境变量，避免默认传入任意业务凭证。
+ */
 function minimalEnv() {
   const allowed = [
     'PATH',
@@ -94,6 +104,9 @@ function minimalEnv() {
     allowed.filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k]]),
   );
 }
+/**
+ * 启动一次计算命令，通过 stdin 传入请求并等待完成；取消或非零退出转成异常。
+ */
 export async function runCommand(
   command: { executable: string; args: string[] },
   cwd: string,

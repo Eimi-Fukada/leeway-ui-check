@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { TaskService } from '../tasks/service.js';
 import { inside } from '../storage/artifacts.js';
 const webRoot = fileURLToPath(new URL('../../../../dist/report-web/', import.meta.url));
+/**
+ * 在本机回环地址提供只读报告页面、任务查询和证据文件接口。
+ * 该 HTTP 服务展示评测数据，不承担 MCP 通信或目标项目启动。
+ */
 export async function startReportServer(service: TaskService, port = 4318) {
   const server = createServer(async (req, res) => {
     try {

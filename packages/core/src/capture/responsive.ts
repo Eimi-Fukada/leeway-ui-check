@@ -1,5 +1,9 @@
 import { chromium } from 'playwright';
 import type { TaskConfig } from '../../../contracts/src/index.js';
+/**
+ * 在配置要求的额外视口宽度检查横向溢出和可见元素越界。
+ * 它验证布局约束，不在缺少对应参考图时生成这些宽度的视觉还原分数。
+ */
 export async function responsiveProbe(config: TaskConfig, url: string, signal: AbortSignal) {
   if (!config.responsive.required)
     return {

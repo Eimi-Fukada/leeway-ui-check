@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { TaskService } from '../packages/core/src/tasks/service.js';
 import { fixtureHtml, makeFixture, closeFixtures, type Variant } from './fixtures.js';
+// 演示脚本自己准备页面服务和固定变体，再调用核心评测；不是由模型修复的效果实验。
 const root = path.resolve('.demo', new Date().toISOString().replaceAll(/[:.]/g, '-'));
 await mkdir(root, { recursive: true });
 const config = await makeFixture(root);

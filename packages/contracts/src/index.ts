@@ -125,6 +125,7 @@ export const WebUrl = z
     (value) => ['http:', 'https:'].includes(new URL(value).protocol),
     'target URL must use HTTP or HTTPS',
   );
+/** 评测目标是已运行的 HTTP/HTTPS 页面，ready_selector 表示等待就绪的元素。 */
 export const Target = z
   .object({
     mode: z.literal('external'),
@@ -132,6 +133,7 @@ export const Target = z
     ready_selector: z.string().min(1).default('body'),
   })
   .strict();
+/** 固定一次任务的参考图、视口、目标、评分策略、交互与预算，创建后作为验收依据。 */
 export const TaskInput = z
   .object({
     schema_version: z.literal('1.0'),
@@ -254,6 +256,7 @@ export const RegionPixelMetric = z
     pixel_score: Score,
   })
   .strict();
+/** 单轮完整评测报告；通过必须有校准分数且没有阻断，失败时不能附带有效分数。 */
 export const Report = z
   .object({
     schema_version: z.literal('1.1'),

@@ -2,6 +2,10 @@ import sharp from 'sharp';
 import pixelmatch from 'pixelmatch';
 import type { EvaluationProfile } from '../../../contracts/src/index.js';
 export const MAX_PIXELS = 32_000_000;
+/**
+ * 用 sharp 统一图片方向、sRGB、白色透明背景和 RGBA 像素，按需裁剪并返回 PNG 与原始数据。
+ * 不缩放图片，避免通过拉伸掩盖真实尺寸或布局差异。
+ */
 export async function normalizeImage(
   input: Buffer,
   crop?: { x: number; y: number; width: number; height: number },
@@ -34,6 +38,10 @@ export async function normalizeImage(
   };
 }
 export type Normalized = Awaited<ReturnType<typeof normalizeImage>>;
+/**
+ * 校验两图尺寸，剔除配置遮罩，计算容差/严格像素差异和用于区域定位的二值掩码。
+ * 返回原始统计与差异像素，不在此决定任务是否通过。
+ */
 export function pixelCompare(
   reference: Normalized,
   actual: Normalized,
@@ -67,6 +75,7 @@ export function pixelCompare(
   });
   pixelmatch(a, b, strict, width, height, { threshold: 0, includeAA: true });
   // Count mismatches only outside the approved mask (pixelmatch's default red output).
+  // 按 pixelmatch 的差异标记计数，同时剔除验收配置允许忽略的像素。
   const count = (pixels: Buffer) => {
     let n = 0;
     for (let i = 0; i < mask.length; i++)
@@ -102,6 +111,9 @@ export function pixelCompare(
     differences,
   };
 }
+/**
+ * 对已标注区域裁取同坐标像素，并将遮罩转换到局部坐标后计算区域差异和像素分数。
+ */
 export function regionPixels(
   reference: Normalized,
   actual: Normalized,
@@ -114,6 +126,7 @@ export function regionPixels(
       y = Math.floor(r.y),
       width = Math.ceil(r.x + r.width) - x,
       height = Math.ceil(r.y + r.height) - y;
+    // 从全图 RGBA 数据复制区域像素，使参考图和候选图使用完全相同的边界。
     const extract = (input: Normalized) => {
       const data = Buffer.alloc(width * height * 4);
       for (let row = 0; row < height; row++)

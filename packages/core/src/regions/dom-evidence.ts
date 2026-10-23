@@ -1,5 +1,9 @@
 import type { Page } from 'playwright';
 import type { DOMEvidence } from '../../../contracts/src/feedback.js';
+/**
+ * 从截图所在页面采集有数量上限的可见 DOM 证据、唯一选择器及实际样式，过滤敏感输入。
+ * 边界统一到最终截图像素坐标，供差异区域关联使用，不推断参考图应有的 CSS。
+ */
 export async function collectDOM(
   page: Page,
   dpr: number,

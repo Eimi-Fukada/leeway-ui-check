@@ -16,7 +16,13 @@ type Status = {
   budget_remaining: { iterations: number; wall_seconds: number };
   evaluations: Evaluation[];
 };
+/**
+ * 把报告中的证据 ID 转为本地只读报告服务的图片地址。
+ */
 const imageUrl = (id: string) => `/api/artifact/${id}`;
+/**
+ * 展示任务列表、评测轮次、整图/差异图与区域证据，通过轮询刷新只读状态。
+ */
 function App() {
   const [tasks, setTasks] = useState<{ id: string; state: string }[]>([]),
     [taskId, setTaskId] = useState(''),
@@ -27,6 +33,9 @@ function App() {
     [error, setError] = useState('');
   useEffect(() => {
     let stopped = false;
+    /**
+     * 刷新当前 effect 对应的数据；组件卸载或切换任务后不再提交过期响应。
+     */
     async function refresh() {
       try {
         const response = await fetch('/api/tasks');
@@ -50,6 +59,9 @@ function App() {
   useEffect(() => {
     if (!taskId) return;
     let stopped = false;
+    /**
+     * 刷新当前 effect 对应的数据；组件卸载或切换任务后不再提交过期响应。
+     */
     async function refresh() {
       try {
         const response = await fetch(`/api/task/${taskId}`);

@@ -20,6 +20,10 @@ export type HookEvent = {
   tool_name?: string;
   tool_response?: unknown;
 };
+/**
+ * 按真实任务状态决定 Stop hook 是否要求续执行，并限制次数、时长与修复预算。
+ * 处理中或待完成时可继续；终态、配置阻断、用户中断及额度耗尽时放行结束。
+ */
 export function continuation(status: Status, binding: Binding, now = Date.now()) {
   if (binding.interrupted || binding.continuations >= 12 || now - binding.bound_at >= 1_200_000)
     return {};
@@ -36,6 +40,9 @@ export function continuation(status: Status, binding: Binding, now = Date.now())
   const reason = actions[status.task_status];
   return reason ? { decision: 'block' as const, reason: `UI task is unfinished. ${reason}` } : {};
 }
+/**
+ * 从 MCP 工具响应中读取结构化结果，必要时解析 text 内容；错误响应不参与聊天绑定。
+ */
 function toolResult(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return null;
   const result = raw as {
@@ -53,6 +60,10 @@ function toolResult(raw: unknown): unknown {
     return null;
   }
 }
+/**
+ * 处理 Codex 生命周期事件：start 成功后绑定聊天与任务，Stop 查询状态，Interrupt 禁用绑定。
+ * 只作用于同一 session/cwd 的指定服务任务，不影响其他聊天。
+ */
 export async function handleHook(
   event: HookEvent,
   root = process.env.HARNESS_HOME ?? path.join(os.homedir(), '.leeway-ui-check'),
@@ -64,6 +75,7 @@ export async function handleHook(
     dir,
     createHash('sha256').update(event.session_id).digest('hex') + '.json',
   );
+  // 先写临时文件再替换，避免 Stop 回调读到只写了一半的聊天绑定。
   const save = async (binding: Binding) => {
     await mkdir(dir, { recursive: true });
     const temp = file + '.' + randomUUID() + '.tmp';

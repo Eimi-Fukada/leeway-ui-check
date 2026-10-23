@@ -46,16 +46,25 @@ type JobRow = {
   fence_token: number;
   attempt: number;
 };
+/**
+ * 解析任务与证据的数据目录；优先采用 HARNESS_HOME，否则使用用户目录。
+ */
 export const defaultRoot = () =>
   process.env.HARNESS_HOME ?? path.join(os.homedir(), '.leeway-ui-check');
 export class TaskService {
   readonly store: Store;
   readonly artifacts: ArtifactStore;
+  /**
+   * 打开任务数据库和证据文件存储，后续评测围绕同一数据目录执行。
+   */
   constructor(readonly root = defaultRoot()) {
     this.root = path.resolve(root);
     this.store = new Store(this.root);
     this.artifacts = new ArtifactStore(path.join(this.root, 'artifacts'));
   }
+  /**
+   * 把截图、报告或文本写入内容寻址的证据文件，并登记可查询的数据库元数据。
+   */
   async artifact(data: Buffer | string, extension: string) {
     const a = await this.artifacts.put(data, extension);
     this.store.run(
@@ -67,20 +76,30 @@ export class TaskService {
     );
     return a;
   }
+  /**
+   * 按证据 ID 查询元数据；不存在时抛错，避免直接接受任意文件路径。
+   */
   getArtifact(artifactId: string) {
     const a = this.store.get('SELECT * FROM artifacts WHERE id=?', artifactId);
     if (!a) throw Error('artifact_not_found');
     return a as { id: string; sha256: string; path: string; media_type: string };
   }
+  /**
+   * 读取任务记录并按当前合同解析固定配置，供所有后续操作检查状态与要求。
+   */
   task(taskId: string) {
     const row = this.store.get<TaskRow>('SELECT * FROM tasks WHERE id=?', taskId);
     if (!row) throw Error('task_not_found');
     return { ...row, config: TaskInput.parse(JSON.parse(row.config)) };
   }
+  /**
+   * 校验参考图、视口、区域和评分配置，保存参考证据并创建任务。
+   * 只固定评测要求；不会访问目标 URL、启动目标项目或进行截图比较。
+   */
   async createTask(input: unknown) {
     const config = TaskInput.parse(input);
     if (config.profile.status === 'retired') throw Error('profile_retired');
-    // Validation documents must already be imported by the owner into this store.
+    // 正式验收前，维护者应已导入独立的校准集和留出集证据；这里只复核存在性与完整性。
     if (config.profile.status === 'validated') {
       const validation = config.profile.validation!;
       if (validation.calibration_sha256 === validation.heldout_sha256)
@@ -186,6 +205,10 @@ export class TaskService {
       needs_reference_confirmation: !config.reference.confirmed,
     };
   }
+  /**
+   * 为任务登记一次 URL 页面采集候选，后续评测通过 candidate_id 关联它。
+   * 候选标识一轮采集，不是源码快照或部署版本证明。
+   */
   async registerCandidate(taskId: string) {
     const task = this.task(taskId);
     if (terminal.has(task.state) || task.cancellation_requested_at)
@@ -215,11 +238,18 @@ export class TaskService {
       evidence_scope: 'captured_page',
     };
   }
+  /**
+   * 读取候选记录；候选不存在时立即报错。
+   */
   candidate(candidateId: string) {
     const c = this.store.get('SELECT * FROM candidates WHERE id=?', candidateId);
     if (!c) throw Error('candidate_not_found');
     return c;
   }
+  /**
+   * 按 request_id 去重并校验任务状态、并发评测和剩余预算，然后创建评测及队列作业。
+   * 这里只排队并消耗一次迭代额度，真正截图由 runNext 调用 perform 执行。
+   */
   evaluateCandidate(candidateId: string, requestId: string) {
     if (!/^[a-zA-Z0-9_-]{1,100}$/.test(requestId)) throw Error('invalid_request_id');
     return this.store.transaction(() => {
@@ -274,6 +304,9 @@ export class TaskService {
       return { evaluation_id: evaluationId, state: 'queued' };
     });
   }
+  /**
+   * 计算还可提交的轮数与剩余时间；任务首次开始评测后计入墙钟时间。
+   */
   remaining(taskId: string) {
     const t = this.task(taskId);
     return {
@@ -284,6 +317,9 @@ export class TaskService {
       ),
     };
   }
+  /**
+   * 读取单轮评测的持久状态、完整报告和错误；运行中尚未产生报告。
+   */
   getEvaluation(evaluationId: string) {
     const e = this.store.get('SELECT * FROM evaluations WHERE id=?', evaluationId);
     if (!e) throw Error('evaluation_not_found');
@@ -295,6 +331,9 @@ export class TaskService {
       error: e.error,
     };
   }
+  /**
+   * 汇总任务、候选、预算和全部评测记录，供报告页及内部操作查看完整进度。
+   */
   getTaskStatus(taskId: string) {
     const t = this.task(taskId);
     return {
@@ -313,6 +352,10 @@ export class TaskService {
         .map((e) => ({ ...e, report: e.report ? Report.parse(JSON.parse(e.report)) : null })),
     };
   }
+  /**
+   * 登记取消请求，取消排队作业；仍在采集的评测需等待 worker 退出并清理浏览器。
+   * 不会关闭 Codex 或开发者启动的目标页面服务。
+   */
   cancelTask(taskId: string) {
     this.store.transaction(() => {
       const t = this.task(taskId);
@@ -335,6 +378,10 @@ export class TaskService {
     });
     return this.getTaskStatus(taskId);
   }
+  /**
+   * 使用任务级短文件锁串行登记提交，相同 request_id 复用同一轮结果。
+   * 新提交依次登记候选和评测，避免网络重试重复计数或并发创建候选。
+   */
   async submitCandidate(taskId: string, requestId: string) {
     if (!/^[a-zA-Z0-9_-]{1,100}$/.test(requestId)) throw Error('invalid_request_id');
     this.task(taskId);
@@ -382,6 +429,10 @@ export class TaskService {
       await rmdir(lock);
     }
   }
+  /**
+   * 提交一轮评测并限时查询结果，最后返回 Agent 摘要；超时仅结束等待，不取消评测。
+   * 此方法不消费队列，需要同进程或独立 worker 执行。
+   */
   async submitAndWait(taskId: string, requestId: string, waitMs = 10000) {
     if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 30000) throw Error('invalid_wait_ms');
     const queued = await this.submitCandidate(taskId, requestId);
@@ -394,6 +445,10 @@ export class TaskService {
     }
     return this.agentStatus(taskId, requestId);
   }
+  /**
+   * 将最新或指定提交的评测转换为有大小上限的 Agent 反馈，并给出 next_action。
+   * 单轮评测完成不代表整个任务通过；task_status 才表示是否修复、查询或完成。
+   */
   agentStatus(taskId: string, requestId?: string) {
     const task = this.task(taskId);
     const row = requestId
@@ -483,6 +538,10 @@ export class TaskService {
     }
     return result;
   }
+  /**
+   * 校验最新候选已通过、评分配置已验证且持久化证据完整，然后正式结束任务。
+   * 只确认采集时页面的验收结果，不重新访问 URL，也不验证源码或未来页面内容。
+   */
   async finalizeTask(taskId: string, candidateId: string) {
     const t = this.task(taskId),
       candidate = this.candidate(candidateId);
@@ -554,6 +613,10 @@ export class TaskService {
       actual_sha256: this.getArtifact(report.artifacts.actual).sha256,
     };
   }
+  /**
+   * 领取一个排队或租约过期的作业，续租并使用 fence_token 防止重复提交结果。
+   * 执行 perform，处理取消/超时/失败，保存证据和报告后更新任务状态。
+   */
   async runNext(signal?: AbortSignal) {
     const job = this.store.transaction(() => {
       const j = this.store.get<JobRow>(
@@ -581,6 +644,7 @@ export class TaskService {
       ...(signal ? [signal] : []),
       AbortSignal.timeout(Math.max(1, Math.floor(remaining.wall_seconds * 1000))),
     ]);
+    // 执行期间续租并检查取消请求，防止工作已被其他 worker 接管后继续写入结果。
     const pulse = setInterval(() => {
       try {
         const t = this.task(task.id);
@@ -597,6 +661,7 @@ export class TaskService {
       }
     }, 1000);
     let report: EvaluationReport;
+    // 只有仍持有本次 fence_token 的 worker 能保存报告。
     const owns = () =>
       !!this.store.get(
         "SELECT id FROM jobs WHERE id=? AND fence_token=? AND state='running'",
@@ -656,6 +721,9 @@ export class TaskService {
     });
     return true;
   }
+  /**
+   * 构造本轮报告共有的任务、参考图、URL、环境占位和预算信息。
+   */
   private base(evaluationId: string) {
     const e = this.store.get('SELECT * FROM evaluations WHERE id=?', evaluationId)!;
     const t = this.task(e.task_id),
@@ -679,6 +747,9 @@ export class TaskService {
       budget_remaining: this.remaining(t.id),
     };
   }
+  /**
+   * 把采集或运行异常转换为无评分的失败报告，提供错误证据与下一步检查方向。
+   */
   private failureReport(evaluationId: string, error: string): EvaluationReport {
     return Report.parse({
       ...this.base(evaluationId),
@@ -709,6 +780,10 @@ export class TaskService {
         error === 'cancelled' || error === 'budget_exhausted' ? 'stop' : 'inspect_failure',
     });
   }
+  /**
+   * 执行一轮实际评测：连接 URL 采集 → 像素/SSIM 比较 → 评分与阻断检查 → 差异图和趋势。
+   * 返回完整报告，由 runNext 负责持久化及任务状态更新。
+   */
   private async perform(evaluationId: string, signal: AbortSignal, state: (s: string) => void) {
     const base = this.base(evaluationId),
       task = this.task(base.task_id),
@@ -716,6 +791,7 @@ export class TaskService {
       candidate = this.candidate(base.candidate_id);
     const url = config.target.url;
     state('capturing');
+    // 先获取稳定页面截图及运行时证据，采集超时与整个任务取消信号共同生效。
     const captured = await capture(
       config,
       url,
@@ -731,6 +807,7 @@ export class TaskService {
     const reference = this.getArtifact(task.reference_artifact),
       refImage = await normalizeImage(await this.artifacts.read(reference)),
       actualImage = await normalizeImage(captured.png);
+    // 两条图像指标独立计算：pixelmatch 定位像素差异，SSIM 衡量局部结构相似度。
     const pixels = pixelCompare(refImage, actualImage, config.profile),
       structure = await ssim(this.artifacts.root, reference, actual, config.profile, signal);
     const encode = (data: Buffer) =>
@@ -739,6 +816,7 @@ export class TaskService {
         .toBuffer();
     const diff = await this.artifact(await encode(pixels.diff), 'png'),
       strictDiff = await this.artifact(await encode(pixels.strict), 'png');
+    // 汇总分数与阻断条件；随后关键区域像素检查也可阻止通过。
     const report = scoreReport(
       config,
       {
@@ -814,6 +892,10 @@ export class TaskService {
     });
     return Report.parse(report);
   }
+  /**
+   * 根据验收结论、预算、取消和连续改善情况更新任务状态，并记录可比较的最佳合格候选。
+   * 评测通过后仍需 finalize，才把任务标记为正式完成。
+   */
   private afterEvaluation(taskId: string, report: EvaluationReport) {
     const t = this.task(taskId),
       budget = this.remaining(taskId);
@@ -858,6 +940,9 @@ export class TaskService {
     }
     this.store.run('UPDATE tasks SET state=? WHERE id=?', state, taskId);
   }
+  /**
+   * 关闭本实例的数据库连接；调用方应先结束正在执行的 worker。
+   */
   close() {
     this.store.close();
   }

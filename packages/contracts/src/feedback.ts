@@ -7,6 +7,7 @@ const rect = z
     height: z.number().int().positive(),
   })
   .strict();
+/** 与差异区域重叠的实现侧 DOM 证据；实际样式和边界仅用于关联，不代表根因。 */
 export const DOMCandidate = z
   .object({
     selector: z.string().nullable(),
@@ -28,6 +29,7 @@ export const DOMCandidate = z
     association_method: z.literal('bbox_overlap'),
   })
   .strict();
+/** 一个差异区域的像素统计、裁剪图引用与 DOM 候选；完整报告保存工件 ID。 */
 export const Difference = z
   .object({
     difference_id: z.string(),
@@ -44,6 +46,7 @@ export const Difference = z
     dom_candidates: z.array(DOMCandidate).max(3),
   })
   .strict();
+/** 本轮差异证据与前后轮变化；不可用、截断和无法比较均有显式原因或计数。 */
 export const VisualFeedback = z
   .object({
     feedback_version: z.literal('visual-feedback-v1'),

@@ -3,10 +3,20 @@ import type { Feedback, DOMEvidence } from '../../../contracts/src/feedback.js';
 import type { EvaluationReport, TaskConfig } from '../../../contracts/src/index.js';
 import { pixelCompare, type Normalized } from '../compare/images.js';
 type Box = { x: number; y: number; width: number; height: number };
+/**
+ * 计算矩形面积，供区域覆盖比例和 DOM 候选排序使用。
+ */
 const area = (b: Box) => b.width * b.height;
+/**
+ * 计算两个矩形的相交面积；没有交集时返回 0。
+ */
 const overlap = (a: Box, b: Box) =>
   Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
   Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+/**
+ * 把未遮罩的差异像素聚合成网格连通区域，合并重叠边界并统计差异量。
+ * 离散区域过多时合成粗区域，避免处理成本失控而丢失差异统计。
+ */
 export function differenceRegions(
   bits: Uint8Array,
   mask: Uint8Array,
@@ -84,6 +94,9 @@ export function differenceRegions(
       }
   return boxes.map((b) => ({ ...b, ...counts(bits, mask, width, b) }));
 }
+/**
+ * 在指定矩形内统计未遮罩像素与差异像素，计算该区域差异比例。
+ */
 function counts(bits: Uint8Array, mask: Uint8Array, width: number, box: Box) {
   let mismatched = 0,
     evaluated = 0;
@@ -101,6 +114,9 @@ function counts(bits: Uint8Array, mask: Uint8Array, width: number, box: Box) {
     difference_ratio: evaluated ? mismatched / evaluated : 0,
   };
 }
+/**
+ * 根据差异框与可见 DOM 边界的重叠程度选取最多三个候选；关联不等于确认根因。
+ */
 export function associateDOM(box: Box, elements: DOMEvidence[]) {
   return elements
     .filter((e) => overlap(box, e.bbox_px) > 0)
@@ -114,6 +130,9 @@ export function associateDOM(box: Box, elements: DOMEvidence[]) {
     .slice(0, 3)
     .map(({ rank, ...e }) => e);
 }
+/**
+ * 构造无法提供视觉反馈时的统一空结果，明确原因，不伪造差异区域。
+ */
 export const unavailableFeedback = (reason: string): Feedback => ({
   feedback_version: 'visual-feedback-v1',
   status: 'unavailable',
@@ -125,6 +144,10 @@ export const unavailableFeedback = (reason: string): Feedback => ({
   comparison: null,
   comparison_unavailable_reason: reason,
 });
+/**
+ * 从本轮像素差异生成区域、成对裁剪图和 DOM 关联，并与上一轮条件一致的评测比较。
+ * put 回调负责保存图片，此函数只返回证据 ID，不改变评分和通过条件。
+ */
 export async function buildFeedback(input: {
   reference: Normalized;
   actual: Normalized;
@@ -296,6 +319,10 @@ export async function buildFeedback(input: {
   }
   return feedback;
 }
+/**
+ * 复制完整反馈并限制区域/轮次变化数量与字节大小，将裁剪图 ID 转为 MCP URI。
+ * 摘要截断有显式计数，原始完整报告保持不变。
+ */
 export function summarizeFeedback(feedback: Feedback) {
   const copy = structuredClone(feedback);
   copy.regions = copy.regions.slice(0, 5);

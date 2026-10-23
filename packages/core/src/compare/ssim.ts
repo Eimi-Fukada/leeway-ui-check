@@ -3,9 +3,16 @@ import { fileURLToPath } from 'node:url';
 import { runCommand } from '../runtime/subprocess.js';
 import type { EvaluationProfile } from '../../../contracts/src/index.js';
 const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+/**
+ * 选择 SSIM 使用的 Python：优先 HARNESS_PYTHON，否则使用 Harness 自己的虚拟环境。
+ */
 export const pythonPath = () =>
   process.env.HARNESS_PYTHON ??
   path.join(repoRoot, '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+/**
+ * 通过有超时限制的 Python 子进程计算两份图像证据的 SSIM，并校验返回值范围。
+ * 输入通过 JSONL 传入；执行的是 Harness 自身计算脚本。
+ */
 export async function ssim(
   root: string,
   reference: { path: string; sha256: string },

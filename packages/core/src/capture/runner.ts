@@ -34,6 +34,10 @@ export type CaptureResult = {
     probes: { width: number; passed: boolean; reasons: string[] }[];
   };
 };
+/**
+ * 用独立 Chromium 上下文访问目标 URL，等待页面稳定并采集截图、DOM、运行错误和检查结果。
+ * 每个交互检查使用独立上下文；函数结束或取消时关闭自身浏览器，不管理目标服务。
+ */
 export async function capture(
   config: TaskConfig,
   url: string,
@@ -54,6 +58,10 @@ export async function capture(
     colorScheme: 'light' as const,
     reducedMotion: 'reduce' as const,
   };
+  /**
+   * 准备一个页面：访问 URL、等待就绪元素/字体/图片、关闭 CSS 动画并恢复滚动位置。
+   * collect 控制是否将资源和页面错误写入本轮运行证据。
+   */
   async function prepare(context: BrowserContext, collect: boolean) {
     const page = await context.newPage();
     page.setDefaultTimeout(config.capture_timeout_ms);
@@ -143,6 +151,7 @@ export async function capture(
             caret: 'hide',
             scale: 'device',
           });
+    // 连续比较页面自身的截图，确认足够稳定后，才将结果用于和参考图比较。
     let previous = await normalizeImage(await shot()),
       png = previous.png,
       stable = false,
@@ -281,6 +290,9 @@ export async function capture(
     await browser.close();
   }
 }
+/**
+ * 依次执行声明的点击、输入、可见性、文字和输入值检查，选择器必须唯一匹配。
+ */
 async function runCheck(page: Page, check: TaskConfig['required_checks'][number]) {
   for (const step of check.steps) {
     const locator = page.locator(step.selector);
@@ -301,6 +313,9 @@ async function runCheck(page: Page, check: TaskConfig['required_checks'][number]
       );
   }
 }
+/**
+ * 只保留资源 URL 的来源和路径，避免将查询参数或片段中的敏感信息写入错误报告。
+ */
 function safeUrl(url: string) {
   try {
     const u = new URL(url);

@@ -3,6 +3,9 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 export class Store {
   readonly db: Database.Database;
+  /**
+   * 打开本地 SQLite，启用 WAL/外键和忙等待，并创建当前任务、队列和证据索引表。
+   */
   constructor(root: string) {
     mkdirSync(root, { recursive: true });
     this.db = new Database(path.join(root, 'harness.sqlite'));
@@ -24,18 +27,33 @@ export class Store {
       CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT NOT NULL REFERENCES tasks(id),kind TEXT NOT NULL,json TEXT NOT NULL,created_at INTEGER NOT NULL);
     `);
   }
+  /**
+   * 执行参数化查询并返回第一行；查不到时返回 undefined。
+   */
   get<T = Record<string, any>>(sql: string, ...args: unknown[]) {
     return this.db.prepare(sql).get(...args) as T | undefined;
   }
+  /**
+   * 执行参数化查询并返回全部记录。
+   */
   all<T = Record<string, any>>(sql: string, ...args: unknown[]) {
     return this.db.prepare(sql).all(...args) as T[];
   }
+  /**
+   * 执行写入语句，返回影响行数等 SQLite 执行信息。
+   */
   run(sql: string, ...args: unknown[]) {
     return this.db.prepare(sql).run(...args);
   }
+  /**
+   * 以立即事务执行同步操作，保证并发队列领取与任务状态更新的原子性。
+   */
   transaction<T>(fn: () => T) {
     return this.db.transaction(fn).immediate();
   }
+  /**
+   * 追加任务事件及 JSON 数据，形成可追溯的操作记录。
+   */
   event(task: string, kind: string, data: unknown) {
     this.run(
       'INSERT INTO events(task_id,kind,json,created_at) VALUES(?,?,?,?)',
@@ -45,6 +63,9 @@ export class Store {
       Date.now(),
     );
   }
+  /**
+   * 释放 SQLite 连接。
+   */
   close() {
     this.db.close();
   }

@@ -10,6 +10,9 @@ import {
 } from '../../../contracts/src/index.js';
 import { TaskService } from '../tasks/service.js';
 
+/**
+ * 发送给 MCP 客户端的工作流指引，说明何时查询、修复、重评及停止。
+ */
 export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images, fix code and resubmit without asking the user to continue. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. Never change acceptance rules to pass.`;
 const ResponsiveInput = z
   .object({
@@ -18,6 +21,9 @@ const ResponsiveInput = z
     max_horizontal_overflow_px: z.number().int().min(0).default(0),
   })
   .strict();
+/**
+ * 创建任务的公开输入合同：参考图路径、已运行 URL、视口和验收要求。
+ */
 export const StartInput = z
   .object({
     reference_image_path: z.string().min(1),
@@ -33,6 +39,9 @@ export const StartInput = z
     pass_threshold: z.number().min(0).max(100).default(90),
   })
   .strict();
+/**
+ * 五个工具共同返回的反馈合同；区分整个任务状态与单轮评测状态。
+ */
 export const AgentStatus = z
   .object({
     run_id: Id,
@@ -77,6 +86,9 @@ export const AgentStatus = z
     delivery: z.record(z.unknown()).optional(),
   })
   .strict();
+/**
+ * 五个公开操作的名称、说明及输入输出合同，供 MCP 注册和 CLI 适配共同使用。
+ */
 export const toolDefinitions = {
   ui_check_start: {
     input: StartInput,
@@ -117,7 +129,14 @@ export const toolDefinitions = {
 } as const;
 export type ToolName = keyof typeof toolDefinitions;
 export class UiWorkflow {
+  /**
+   * 注入任务服务，让不同入口复用同一个业务流程。
+   */
   constructor(readonly service: TaskService) {}
+  /**
+   * 按工具名校验输入并分发创建、提交、查询、取消或完成操作，再校验统一返回结构。
+   * 只编排任务服务，不修改代码或启动目标项目。
+   */
   async call(name: string, raw: unknown): Promise<Record<string, unknown>> {
     const service = this.service;
     if (!(name in toolDefinitions) || !Object.hasOwn(toolDefinitions, name))
@@ -125,6 +144,7 @@ export class UiWorkflow {
     let result: unknown;
     switch (name as ToolName) {
       case 'ui_check_start': {
+        // 创建时固定参考图、目标 URL 和验收条件；此时尚未访问页面或执行评分。
         const input = StartInput.parse(raw);
         const storedProfile = input.profile_id
           ? service.store.get<{ json: string }>(
@@ -178,22 +198,26 @@ export class UiWorkflow {
         break;
       }
       case 'ui_check_submit': {
+        // 提交只负责登记并短暂等待；常驻 worker 从队列执行截图和比较。
         const input = toolDefinitions.ui_check_submit.input.parse(raw);
         result = await service.submitAndWait(input.run_id, input.request_id, input.wait_ms);
         break;
       }
       case 'ui_check_status': {
+        // 提供指定 request_id 时查看该轮，否则查看最新一轮。
         const input = toolDefinitions.ui_check_status.input.parse(raw);
         result = service.agentStatus(input.run_id, input.request_id);
         break;
       }
       case 'ui_check_cancel': {
+        // 取消请求和资源清理可能不同步，返回的 next_action 会说明是否仍需等待。
         const input = toolDefinitions.ui_check_cancel.input.parse(raw);
         service.cancelTask(input.run_id);
         result = service.agentStatus(input.run_id);
         break;
       }
       case 'ui_check_finalize': {
+        // 只交给服务校验最新候选，避免把之前通过但已被新提交替代的结果当作完成。
         const input = toolDefinitions.ui_check_finalize.input.parse(raw);
         const state = service.getTaskStatus(input.run_id);
         const candidate = state.final_candidate ?? state.latest_candidate;

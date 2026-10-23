@@ -7,7 +7,13 @@ import {
 } from '../../../contracts/src/index.js';
 import type { DOMRegion, CaptureResult } from '../capture/runner.js';
 import type { pixelCompare } from '../compare/images.js';
+/**
+ * 将归一化计算结果限制在 0～1，供像素和结构分数换算使用。
+ */
 const clamp = (n: number) => Math.min(1, Math.max(0, n));
+/**
+ * 按位置和尺寸的配置容差，将参考/实际边界差异换算为 0～100 的几何分数。
+ */
 export function geometry(reference: Bbox, actual: Bbox, position: number, size: number) {
   const ep = (Math.abs(actual.x - reference.x) + Math.abs(actual.y - reference.y)) / (2 * position);
   const es =
@@ -15,6 +21,9 @@ export function geometry(reference: Bbox, actual: Bbox, position: number, size: 
     (2 * size);
   return 100 * Math.max(0, 1 - 0.5 * ep - 0.5 * es);
 }
+/**
+ * 按配置归一化文字，再用字符编辑距离计算相似分数；超长文本直接拒绝以限制成本。
+ */
 export function textSimilarity(
   expected: string,
   actual: string,
@@ -34,6 +43,10 @@ export function textSimilarity(
   }
   return 100 * (1 - row[b.length] / Math.max(1, a.length, b.length));
 }
+/**
+ * 将已标注的参考区域与实际 DOM 对照，计算几何/文字分数及缺失、歧义、溢出等问题。
+ * 没有可靠匹配时返回阻断或待审核信息，不猜测截图中的元素真值。
+ */
 export function inspectRegions(
   config: TaskConfig,
   actual: DOMRegion[],
@@ -158,6 +171,10 @@ export function inspectRegions(
     review,
   };
 }
+/**
+ * 把像素、SSIM、标注布局/文字按 profile 加权，再结合阈值、校准、资源和交互检查形成结论。
+ * 高总分不能覆盖阻断条件；返回 pass、needs_revision 或 review_required。
+ */
 export function scoreReport(
   config: TaskConfig,
   base: Omit<
