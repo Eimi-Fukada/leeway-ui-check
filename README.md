@@ -63,6 +63,7 @@ Harness 不自动猜测按钮的业务行为。需要检查的交互须写入任
 - [MCP 接入](guides/mcp.md)：工具、参数、Agent 指令与可选 hooks。
 - [常见问题](guides/faq.md)：100 分未通过、Python、重复提交与错误恢复。
 - [架构](guides/project-tour.md)：模块职责和实际执行链路。
+- [断点调试](guides/debugging.md)：用 MCP Inspector 手动调用并观察真实输入输出。
 - [视觉反馈机制](guides/visual-feedback-design.md)：差异区域、局部对照图、DOM关联与轮次变化。
 - [评分校准](evals/calibration/README.md)：权重、证据和正式验收。
 - [版本说明](CHANGELOG.md) · [贡献指南](CONTRIBUTING.md) · [安全边界](SECURITY.md)。

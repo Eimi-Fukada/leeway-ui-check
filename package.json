@@ -12,6 +12,7 @@
     "build": "vite build apps/report-web --outDir ../../dist/report-web",
     "cli": "tsx packages/cli/src/index.ts",
     "mcp": "tsx packages/mcp/src/index.ts",
+    "inspect:mcp": "node scripts/inspect-mcp.mjs",
     "worker": "tsx packages/cli/src/index.ts worker",
     "demo": "tsx scripts/demo.ts",
     "schemas": "tsx scripts/schemas.ts",
