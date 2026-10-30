@@ -20,6 +20,7 @@ export async function collectDOM(
       let visited = 0;
       const properties = [
         'font-size',
+        'font-weight',
         'line-height',
         'font-family',
         'color',

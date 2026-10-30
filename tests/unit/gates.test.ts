@@ -109,6 +109,18 @@ function score(c: TaskConfig, ratio = 0) {
   );
 }
 describe('deterministic acceptance gates', () => {
+  it('treats calibration as metadata: below threshold repairs, at threshold passes', () => {
+    const profile = { ...config.profile, status: 'provisional' as const };
+    const below = score({ ...config, profile }, 0.1);
+    expect(below.score?.value).toBeLessThan(90);
+    expect(below.blockers).toContain('below_threshold');
+    expect(below.blockers).not.toContain('profile_not_validated');
+    expect(below.next_action).toBe('revise_and_evaluate');
+    const passing = score({ ...config, profile });
+    expect(passing.score?.calibrated).toBe(false);
+    expect(passing.verdict).toBe('pass');
+    expect(passing.next_action).toBe('finalize');
+  });
   it('uses unrounded scores and explicit greater-than semantics', () => {
     expect(score({ ...config, pass_threshold: 100, threshold_operator: 'gte' }).verdict).toBe(
       'pass',
@@ -172,4 +184,41 @@ describe('deterministic acceptance gates', () => {
       }),
     ).toThrow();
   });
+});
+
+it('does not let a strong aggregate compensate for a failed visual dimension', () => {
+  const report = score(config, 0.03);
+  expect(report.score!.value).toBeGreaterThan(90);
+  expect(report.components!.pixel).toBe(88);
+  expect(report.blockers).toContain('below_threshold:pixel');
+  expect(report.verdict).toBe('needs_revision');
+});
+
+it('checks content-only text independently of CSS boxes and leaves layout unmeasured', () => {
+  const content = { ...config, regions: [{ ...config.regions[0], bbox: undefined }] };
+  const report = score(content);
+  expect(report.components!.layout).toBeNull();
+  expect(report.components!.text).toBe(100);
+  expect(report.score!.value).toBe(100);
+  expect(report.assessment?.layout_regions).toBe(0);
+  expect(
+    inspectRegions(
+      content,
+      [{ ...captured.regions[0], text: 'Wrong', bbox: { x: 50, y: 50, width: 20, height: 20 } }],
+      100,
+      100,
+    ).blockers,
+  ).toContain('critical_text:title');
+  const images = score({
+    ...config,
+    regions: [],
+    profile: {
+      ...defaultProfile,
+      mode: 'pixel_diagnostic',
+      weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
+    },
+  });
+  expect(images.assessment?.scope).toBe('image_only');
+  expect(images.components!.layout).toBeNull();
+  expect(images.components!.text).toBeNull();
 });

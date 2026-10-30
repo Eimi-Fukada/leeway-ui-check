@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   Id,
+  AnnotationInput,
   Region,
   Check,
   Report,
@@ -13,7 +14,7 @@ import { TaskService } from '../tasks/service.js';
 /**
  * 发送给 MCP 客户端的工作流指引，说明何时查询、修复、重评及停止。
  */
-export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images, fix code and resubmit without asking the user to continue. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. Never change acceptance rules to pass.`;
+export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images, fix code and resubmit without asking the user to continue. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. For screenshot reconstruction, prepare reference-only annotations, render and inspect the overlay, then provide annotation_input at start. Content-only text omits geometry. Never change acceptance rules to pass.`;
 const ResponsiveInput = z
   .object({
     required: z.boolean().default(false),
@@ -32,6 +33,7 @@ export const StartInput = z
     viewport_height: z.number().int().positive().max(8192),
     device_scale_factor: z.number().positive().max(4).default(1),
     ready_selector: z.string().min(1).default('body'),
+    annotation_input: AnnotationInput.optional(),
     regions: z.array(Region).default([]),
     required_checks: z.array(Check).default([]),
     responsive: ResponsiveInput.optional(),
@@ -66,6 +68,7 @@ export const AgentStatus = z
     issues: z.array(Report.innerType().shape.issues.element),
     issues_omitted: z.number().int().min(0),
     blockers_omitted: z.number().int().min(0),
+    assessment: Report.innerType().shape.assessment.nullable(),
     components: Report.innerType().shape.components,
     schema_version: z.string(),
     visual_feedback: Report.innerType().shape.visual_feedback.nullable(),
@@ -155,7 +158,7 @@ export class UiWorkflow {
         if (input.profile_id && !storedProfile) throw Error('profile_not_found');
         const profile = storedProfile
           ? JSON.parse(storedProfile.json)
-          : input.regions.length
+          : input.regions.length || input.annotation_input
             ? { ...defaultProfile, profile_id: 'facade-annotated-v1' }
             : {
                 ...defaultProfile,
@@ -179,6 +182,7 @@ export class UiWorkflow {
             ready_selector: input.ready_selector,
           },
           profile,
+          annotation_input: input.annotation_input,
           regions: input.regions,
           required_checks: input.required_checks,
           pass_threshold: input.pass_threshold,

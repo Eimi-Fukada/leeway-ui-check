@@ -5,13 +5,20 @@ description: Implement and iteratively repair UI against a reference screenshot 
 
 Use this workflow when the user requests Leeway UI reconstruction. Follow explicit user scope and cancellation.
 
+Before screenshot reconstruction, follow [reference annotation instructions](references/annotations.md).
+Use your vision to create candidate reference-only boxes/copy, execute `scripts/render_annotations.py`,
+actually inspect the overlay and crops, then bind implementation selectors. Supply `annotation_input`
+at start. Do not claim four-dimensional acceptance when annotations are absent. Unresolved references
+require review; do not change expected values to fit the implementation.
+Harness checkout for normalization/runtime tools: `<HARNESS_ROOT>` (in this source checkout, the repository root).
+
 1. Start the target project with your own project tools. Keep its HTTP/HTTPS URL accessible to the Harness. Call `ui_check_start` with the reference image path, viewport and `target_url`. Preserve the returned `run_id` and acceptance requirements.
 2. Modify the target code and ensure the running URL reflects the update, then call `ui_check_submit` with a new `request_id` for each changed version. Reuse the same request ID only to retry the same submission.
 3. Use `task_status` and `next_action` to decide what happens next:
    - `evaluating`: poll `ui_check_status` with the same run/request IDs. Never queue duplicate work.
    - `needs_revision`: actually read the reference/actual/diff crop images, repair code, and resubmit within budget. Do not end by asking the user to say continue.
    - `ready_to_finalize`: call `ui_check_finalize`; its passing result confirms captured page evidence, not source code or future URL content.
-   - `blocked`: inspect the reason. Configuration/calibration review requires human action; do not keep modifying UI when only `profile_not_validated` remains. Diagnose recoverable runtime errors before retrying.
+   - `blocked`: inspect the reason. Report the concrete runtime or reference-configuration failure. Calibration metadata is informational and must not stop a below-threshold repair loop.
    - terminal task: report pass, cancellation, failure, stalled progress or exhausted budget accurately.
 4. Do not modify reference images, thresholds, masks or profiles to obtain a pass. A high score without gate approval is not success.
 5. Image URI presence does not mean you have seen the image. If the host cannot read the MCP resources, explain the evidence-access limitation.

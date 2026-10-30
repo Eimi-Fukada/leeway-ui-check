@@ -135,7 +135,7 @@ it('runs all five tools through a real stdio MCP worker using only reference ima
     service.close();
   }
 });
-it('uses identical CLI/MCP facade feedback and continues a failed UI, then releases configuration review and user interruption', async () => {
+it('uses identical CLI/MCP facade feedback and continues a failed UI, then finalizes a passing provisional result and respects user interruption', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'leeway-loop-'));
   const config = await makeFixture(root);
   const service = new TaskService(path.join(root, 'store')),
@@ -152,7 +152,7 @@ it('uses identical CLI/MCP facade feedback and continues a failed UI, then relea
       session_id: 'chat-one',
       cwd: root,
       hook_event_name: 'PostToolUse',
-      tool_name: 'mcp__leeway-ui-check__ui_check_start',
+      tool_name: 'mcp__leeway_ui_check__ui_check_start',
       tool_response: { structuredContent: created },
     };
     await handleHook(event, service.root);
@@ -202,12 +202,13 @@ it('uses identical CLI/MCP facade feedback and continues a failed UI, then relea
       ),
     );
     expect(done.evaluation_status).toBe('completed');
-    expect(done.task_status).toBe('blocked'); // provisional profile must not become a false pass
-    expect(done.next_action).toBe('review_configuration');
+    expect(done.task_status).toBe('ready_to_finalize');
+    expect(done.score.calibrated).toBe(false);
+    expect(done.next_action).toBe('finalize');
+    expect(await handleHook(stop, service.root)).toHaveProperty('decision', 'block');
+    const finalized = await workflow.call('ui_check_finalize', { run_id: created.run_id });
+    expect(finalized.task_status).toBe('passed');
     expect(await handleHook(stop, service.root)).toEqual({});
-    await expect(workflow.call('ui_check_finalize', { run_id: created.run_id })).rejects.toThrow(
-      'candidate_not_passed',
-    );
     await handleHook({ ...stop, hook_event_name: 'Interrupt' }, service.root);
     // Interrupt remains effective even after additional tool results.
     await handleHook(event, service.root);

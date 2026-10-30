@@ -3,7 +3,12 @@ import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
-import { continuation, handleHook, type Binding } from '../../packages/codex/src/hooks.js';
+import {
+  continuation,
+  handleHook,
+  startToolName,
+  type Binding,
+} from '../../packages/codex/src/hooks.js';
 import { installCodexWorkflow } from '../../packages/codex/src/install.js';
 type Status = Parameters<typeof continuation>[0];
 const binding: Binding = {
@@ -13,6 +18,14 @@ const binding: Binding = {
   bound_at: 1000,
   interrupted: false,
 };
+it('matches only the current fully qualified Codex tool name', () => {
+  const pattern = new RegExp(`^${startToolName}$`);
+  expect(pattern.test('mcp__leeway_ui_check__ui_check_start')).toBe(true);
+  expect(pattern.test('mcp__leeway-ui-check__ui_check_start')).toBe(false);
+  expect(pattern.test('ui_check_start')).toBe(false);
+  expect(pattern.test('mcp__foreign__ui_check_start')).toBe(false);
+  expect(pattern.test('mcp__leeway_ui_check_owner__ui_check_start')).toBe(false);
+});
 const status = (task_status: Status['task_status'], overrides: Partial<Status> = {}): Status =>
   ({
     run_id: 'task_one',
@@ -101,6 +114,13 @@ it('installs project-local hooks idempotently, preserves unrelated hooks, and wi
   expect(config.hooks.Stop[1].hooks[0].commandWindows).toContain('powershell.exe');
   expect(config.hooks.Stop[1].hooks[0].command).toContain(first.harness_home);
   expect(await readFile(first.skill, 'utf8')).toContain('needs_revision');
+  expect(await readFile(first.skill, 'utf8')).not.toContain('<HARNESS_ROOT>');
+  expect(
+    await readFile(path.join(path.dirname(first.skill), 'scripts/render_annotations.py'), 'utf8'),
+  ).toContain('def render(');
+  expect(
+    await readFile(path.join(path.dirname(first.skill), 'references/annotations.md'), 'utf8'),
+  ).toContain('content_only');
 });
 it.skipIf(process.platform !== 'win32')(
   'executes the generated Windows hook from a project without Harness dependencies',

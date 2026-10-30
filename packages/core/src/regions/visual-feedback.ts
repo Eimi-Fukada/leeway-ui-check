@@ -162,7 +162,7 @@ export async function buildFeedback(input: {
     { width, height } = reference;
   const boxes = differenceRegions(pixels.differences, pixels.mask, width, height).sort((a, b) => {
     const critical = (r: Box) =>
-      config.regions.some((c) => c.critical && overlap(r, c.bbox) > 0) ? 1 : 0;
+      config.regions.some((c) => c.critical && c.bbox && overlap(r, c.bbox) > 0) ? 1 : 0;
     return (
       critical(b) - critical(a) ||
       b.mismatched_pixels - a.mismatched_pixels ||

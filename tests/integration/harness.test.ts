@@ -32,15 +32,14 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     await service.runNext();
     return { task, candidate, evaluation: service.getEvaluation(queued.evaluation_id!) };
   }
-  it('captures exact pixels twice and never formally passes a provisional profile', async () => {
+  it('captures exact pixels and finalizes a threshold-passing provisional profile', async () => {
     const { task, candidate, evaluation } = await evaluate('exact');
     expect(evaluation.state).toBe('completed');
     expect(evaluation.report?.score?.value).toBe(100);
     expect(evaluation.report?.metrics?.ssim).toBe(1);
-    expect(evaluation.report?.blockers).toEqual(['profile_not_validated']);
-    await expect(service.finalizeTask(task.task_id, candidate.candidate_id)).rejects.toThrow(
-      'candidate_not_passed',
-    );
+    expect(evaluation.report?.blockers).toEqual([]);
+    expect(evaluation.report?.score?.calibrated).toBe(false);
+    expect((await service.finalizeTask(task.task_id, candidate.candidate_id)).state).toBe('passed');
     const replay = service.evaluateCandidate(candidate.candidate_id, 'request');
     expect(replay.evaluation_id).toBe(evaluation.evaluation_id);
     expect(service.task(task.task_id).iterations).toBe(1);
@@ -100,7 +99,7 @@ describe('real Chromium + SQLite + Python pipeline', () => {
     }
   });
   it('recovers queued work after a client reconnect and honors iteration exhaustion', async () => {
-    await writeFile(path.join(root, 'target/index.html'), fixtureHtml('exact'));
+    await writeFile(path.join(root, 'target/index.html'), fixtureHtml('shift'));
     const task = await service.createTask({
         ...config,
         budget: { max_iterations: 1, max_wall_seconds: 60 },
@@ -262,7 +261,7 @@ describe('real Chromium + SQLite + Python pipeline', () => {
       reference: { ...config.reference, crop: { x: 16, y: 16, width: 928, height: 608 } },
       regions: config.regions.map((r) => ({
         ...r,
-        bbox: { ...r.bbox, x: r.bbox.x - 16, y: r.bbox.y - 16 },
+        bbox: r.bbox ? { ...r.bbox, x: r.bbox.x - 16, y: r.bbox.y - 16 } : undefined,
       })),
     });
     expect(cropped.evaluation.report?.score?.value).toBe(100);

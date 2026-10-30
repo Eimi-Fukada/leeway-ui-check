@@ -483,6 +483,42 @@
             }
           ]
         },
+        "assessment": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "enum": [
+                "image_only",
+                "annotated"
+              ]
+            },
+            "layout_regions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "text_regions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total_role": {
+              "type": "string",
+              "const": "progress_indicator"
+            },
+            "acceptance": {
+              "type": "string",
+              "const": "independent_gates"
+            }
+          },
+          "required": [
+            "scope",
+            "layout_regions",
+            "text_regions",
+            "total_role",
+            "acceptance"
+          ],
+          "additionalProperties": false
+        },
         "components": {
           "anyOf": [
             {
@@ -733,6 +769,22 @@
               "pattern": "^[a-zA-Z0-9_-]{1,100}$"
             },
             "report": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "annotations": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "bindings": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "annotation_preview": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "annotation_manifest": {
               "type": "string",
               "pattern": "^[a-zA-Z0-9_-]{1,100}$"
             }

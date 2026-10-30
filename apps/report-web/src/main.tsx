@@ -28,7 +28,9 @@ function App() {
     [taskId, setTaskId] = useState(''),
     [task, setTask] = useState<Status | null>(null),
     [selected, setSelected] = useState(''),
-    [view, setView] = useState<'reference' | 'actual' | 'diff' | 'strict_diff'>('diff'),
+    [view, setView] = useState<
+      'reference' | 'actual' | 'diff' | 'strict_diff' | 'annotation_preview'
+    >('diff'),
     [boxes, setBoxes] = useState(true),
     [error, setError] = useState('');
   useEffect(() => {
@@ -143,7 +145,7 @@ function App() {
           <>
             <section className="stats">
               <article>
-                <label>视觉评分</label>
+                <label>综合进展分</label>
                 <div className="score">
                   {report?.score ? report.score.value.toFixed(1) : '—'}
                   <small> / 100</small>
@@ -174,23 +176,66 @@ function App() {
                 <span>{Math.ceil(task?.budget_remaining.wall_seconds ?? 0)} 秒可用</span>
               </article>
             </section>
-            {report?.blockers.includes('profile_not_validated') && (
-              <div className="notice">
-                ⓘ　当前配置用于诊断。即使显示 90 分以上，也不会被判定为正式通过。
-              </div>
+            {report && (
+              <section className="assessment-panel">
+                <h2>
+                  {report.assessment?.scope === 'image_only'
+                    ? '仅图像评测'
+                    : report.assessment
+                      ? '标注区域评测'
+                      : '历史评测'}
+                </h2>
+                <p>
+                  综合分用于观察进展，不代表还原百分比。各已测维度及关键区域独立验收；同一问题可能影响多个指标。
+                </p>
+                <div className="dimension-grid">
+                  {(['pixel', 'structure', 'layout', 'text'] as const).map((key, index) => (
+                    <article key={key}>
+                      <strong>{['像素', '结构 SSIM', '布局', '文字内容'][index]}</strong>
+                      <div>
+                        {report.components?.[key] == null
+                          ? '未评测'
+                          : report.components[key].toFixed(1)}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                {report.assessment && (
+                  <p>
+                    布局 {report.assessment.layout_regions} 个区域 · 文字{' '}
+                    {report.assessment.text_regions} 个区域；标注范围之外不作完整覆盖保证。
+                  </p>
+                )}
+                {report.artifacts.annotations && (
+                  <p>
+                    <a href={imageUrl(report.artifacts.annotations)}>参考标注 JSON</a> ·{' '}
+                    <a href={imageUrl(report.artifacts.bindings!)}>DOM 映射 JSON</a>
+                  </p>
+                )}
+              </section>
             )}
             <div className="workspace">
               <section className="canvas-panel">
                 <div className="panel-top">
                   <div className="tabs">
-                    {(['reference', 'actual', 'diff', 'strict_diff'] as const).map((key, i) => (
+                    {(
+                      [
+                        'reference',
+                        'actual',
+                        'diff',
+                        'strict_diff',
+                        ...(report?.artifacts.annotation_preview
+                          ? ['annotation_preview' as const]
+                          : []),
+                      ] as const
+                    ).map((key, i) => (
                       <button
                         key={key}
                         aria-pressed={key === view}
                         className={key === view ? 'active' : ''}
                         onClick={() => setView(key)}
                       >
-                        {['参考图', '当前截图', '差异图', '严格差异'][i]}
+                        {['参考图', '当前截图', '差异图', '严格差异', '标注预览'][i]}
                       </button>
                     ))}
                   </div>
@@ -213,6 +258,7 @@ function App() {
                             actual: '当前截图',
                             diff: '差异图',
                             strict_diff: '严格差异图',
+                            annotation_preview: '参考标注预览',
                           }[view]
                         }
                         src={imageUrl(report.artifacts[view]!)}
@@ -224,6 +270,7 @@ function App() {
                         }
                       />
                       {boxes &&
+                        view !== 'annotation_preview' &&
                         report.issues
                           .filter((i) => i.reference_bbox_px)
                           .map((issue) => {

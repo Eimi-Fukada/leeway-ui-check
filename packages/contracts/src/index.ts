@@ -25,12 +25,31 @@ export const Region = z
   .object({
     region_id: Id,
     kind: z.enum(['text', 'component', 'image']),
-    bbox: Rect,
+    bbox: Rect.optional(),
     selector: z.string().min(1),
     expected_text: z.string().optional(),
     critical: z.boolean().default(false),
     weight: finite.positive().default(1),
-    geometry_tolerance: z.object({ position: finite.positive(), size: finite.positive() }).strict(),
+    geometry_tolerance: z
+      .object({ position: finite.positive(), size: finite.positive() })
+      .strict()
+      .default({ position: 10, size: 10 }),
+  })
+  .strict();
+// Content-only regions deliberately omit bbox: glyph bounds are not CSS element boxes.
+export const AnnotationInput = z
+  .object({
+    reference_path: z.string().min(1),
+    bindings_path: z.string().min(1),
+    preview_path: z.string().min(1),
+  })
+  .strict();
+export const AnnotationEvidence = z
+  .object({
+    reference: Id,
+    bindings: Id,
+    preview: Id,
+    manifest: Id,
   })
   .strict();
 export const Check = z
@@ -157,6 +176,8 @@ export const TaskInput = z
     target: Target,
     profile: Profile,
     regions: z.array(Region),
+    annotation_input: AnnotationInput.optional(),
+    annotation_evidence: AnnotationEvidence.optional(),
     required_checks: z.array(Check),
     pass_threshold: Score.default(90),
     threshold_operator: z.enum(['gte', 'gt']).default('gte'),
@@ -189,14 +210,15 @@ export const TaskInput = z
       });
     if (t.responsive.required && !t.responsive.probe_widths.length)
       c.addIssue({ code: 'custom', message: 'responsive.required needs probe_widths' });
-    if (
-      t.profile.mode === 'annotated' &&
-      (!t.regions.length || !t.regions.some((r) => r.expected_text !== undefined))
-    )
+    if (t.profile.mode === 'annotated' && !t.annotation_input && !t.regions.length)
       c.addIssue({
         code: 'custom',
-        message: 'annotated profile requires regions and text baselines',
+        message: 'annotated profile requires regions',
       });
+    for (const r of t.regions) {
+      if (!r.bbox && r.expected_text === undefined)
+        c.addIssue({ code: 'custom', message: 'region requires bbox or expected_text' });
+    }
     for (const values of [t.regions.map((r) => r.region_id), t.required_checks.map((r) => r.id)])
       if (new Set(values).size !== values.length)
         c.addIssue({ code: 'custom', message: 'duplicate region/check id' });
@@ -256,7 +278,7 @@ export const RegionPixelMetric = z
     pixel_score: Score,
   })
   .strict();
-/** 单轮完整评测报告；通过必须有校准分数且没有阻断，失败时不能附带有效分数。 */
+/** 单轮完整评测报告；综合分是进展指标；各已测维度的门槛由评分器写入 blockers，失败时不能附带有效分数。 */
 export const Report = z
   .object({
     schema_version: z.literal('1.1'),
@@ -276,6 +298,16 @@ export const Report = z
       .object({ value: Score, threshold: Score, calibrated: z.boolean() })
       .strict()
       .nullable(),
+    assessment: z
+      .object({
+        scope: z.enum(['image_only', 'annotated']),
+        layout_regions: z.number().int().min(0),
+        text_regions: z.number().int().min(0),
+        total_role: z.literal('progress_indicator'),
+        acceptance: z.literal('independent_gates'),
+      })
+      .strict()
+      .optional(),
     components: Components.nullable(),
     blockers: z.array(z.string()),
     issues: z.array(Issue),
@@ -287,6 +319,10 @@ export const Report = z
         strict_diff: Id.optional(),
         dom: Id.optional(),
         report: Id.optional(),
+        annotations: Id.optional(),
+        bindings: Id.optional(),
+        annotation_preview: Id.optional(),
+        annotation_manifest: Id.optional(),
       })
       .strict(),
     metrics: z
@@ -324,9 +360,15 @@ export const Report = z
       c.addIssue({ code: 'custom', message: 'failed evaluations cannot have scores' });
     if (
       r.verdict === 'pass' &&
-      (r.status !== 'completed' || !r.score?.calibrated || r.blockers.length)
+      (r.status !== 'completed' ||
+        !r.score ||
+        r.score.value < r.score.threshold ||
+        r.blockers.length)
     )
-      c.addIssue({ code: 'custom', message: 'pass requires calibrated score and no blockers' });
+      c.addIssue({
+        code: 'custom',
+        message: 'pass requires a completed score meeting threshold and no blockers',
+      });
   });
 export type EvaluationReport = z.infer<typeof Report>;
 export const defaultProfile: EvaluationProfile = Profile.parse({

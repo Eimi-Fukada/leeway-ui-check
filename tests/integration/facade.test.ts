@@ -40,7 +40,7 @@ it('serializes URL submissions, replays requests, waits without consuming jobs, 
     const done = await waiting;
     expect(done.evaluation_status).toBe('completed');
     expect(done.score?.value).toBe(100);
-    expect(done.next_action).toBe('review_configuration');
+    expect(done.next_action).toBe('finalize');
     expect(done.artifacts.actual).toMatch(/^harness:\/\/artifacts\//);
     expect((await worker.submitCandidate(task.task_id, 'one')).evaluation_id).toBe(a.evaluation_id);
   } finally {

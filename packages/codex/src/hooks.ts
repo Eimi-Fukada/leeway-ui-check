@@ -5,6 +5,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { AgentStatus } from '../../core/src/workflow/facade.js';
 import { TaskService } from '../../core/src/tasks/service.js';
 
+// ui_check_start 在当前 Codex hook 事件中的完整工具名，精确匹配本服务。
+export const startToolName = 'mcp__leeway_ui_check__ui_check_start';
+
 type Status = ReturnType<typeof AgentStatus.parse>;
 export type Binding = {
   run_id: string;
@@ -90,7 +93,7 @@ export async function handleHook(
   }
   if (event.hook_event_name === 'PostToolUse') {
     // Bind only our start tool, not similarly named tools on other MCP servers.
-    if (event.tool_name !== 'mcp__leeway-ui-check__ui_check_start') return {};
+    if (event.tool_name !== startToolName) return {};
     const parsed = AgentStatus.safeParse(toolResult(event.tool_response));
     if (!parsed.success) return {};
     const run = parsed.data;

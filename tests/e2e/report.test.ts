@@ -6,6 +6,12 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { chromium } from 'playwright';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { normalizeImage } from '../../packages/core/src/compare/images.js';
+import { hash } from '../../packages/core/src/storage/artifacts.js';
+import { pythonPath } from '../../packages/core/src/compare/ssim.js';
+import { readFile } from 'node:fs/promises';
 import { TaskService } from '../../packages/core/src/tasks/service.js';
 import { startReportServer } from '../../packages/core/src/reports/server.js';
 import { makeFixture, fixtureHtml } from '../../scripts/fixtures.js';
@@ -14,7 +20,54 @@ it('renders report images, switches history/views and fits a 390px viewport', as
     config = await makeFixture(root),
     service = new TaskService(path.join(root, 'store'));
   await writeFile(path.join(root, 'target/index.html'), fixtureHtml('shift'));
-  const task = await service.createTask(config),
+  const referenceBytes = (await normalizeImage(await readFile(config.reference_path))).png;
+  const annotationPath = path.join(root, 'annotations.json'),
+    bindingPath = path.join(root, 'bindings.json'),
+    previewPath = path.join(root, 'preview.png');
+  const normalizedPath = path.join(root, 'normalized.png');
+  await writeFile(normalizedPath, referenceBytes);
+  await writeFile(
+    annotationPath,
+    JSON.stringify({
+      version: '1',
+      image_sha256: hash(referenceBytes),
+      image_width: 960,
+      image_height: 640,
+      source: 'human',
+      preview_reviewed: true,
+      unresolved: [],
+      regions: config.regions.map((r) => ({
+        region_id: r.region_id,
+        kind: r.kind,
+        bbox: r.bbox,
+        expected_text: r.expected_text,
+        boundary: 'element_box',
+      })),
+    }),
+  );
+  await writeFile(
+    bindingPath,
+    JSON.stringify({
+      version: '1',
+      bindings: config.regions.map((r) => ({ region_id: r.region_id, selector: r.selector })),
+    }),
+  );
+  await promisify(execFile)(pythonPath(), [
+    '.agents/skills/leeway-ui-check/scripts/render_annotations.py',
+    normalizedPath,
+    annotationPath,
+    previewPath,
+  ]);
+  const task = await service.createTask({
+      ...config,
+      reference_path: normalizedPath,
+      regions: [],
+      annotation_input: {
+        reference_path: annotationPath,
+        bindings_path: bindingPath,
+        preview_path: previewPath,
+      },
+    }),
     candidate = await service.registerCandidate(task.task_id);
   service.evaluateCandidate(candidate.candidate_id, 'report');
   await service.runNext();
@@ -31,6 +84,11 @@ it('renders report images, switches history/views and fits a 390px viewport', as
     await page.goto(url);
     await page.getByRole('img', { name: '差异图', exact: true }).waitFor();
     expect(await page.locator('.score').innerText()).toContain('100.0');
+    expect(await page.locator('.assessment-panel').innerText()).toContain('标注区域评测');
+    await page.getByRole('button', { name: '标注预览', exact: true }).click();
+    await page.getByRole('img', { name: '参考标注预览', exact: true }).waitFor();
+    expect(await page.locator('.canvas .region').count()).toBe(0);
+    await page.getByRole('button', { name: '差异图', exact: true }).click();
     await page.getByRole('button', { name: '参考图', exact: true }).click();
     await page.getByRole('img', { name: '参考图', exact: true }).waitFor();
     await page.getByRole('button', { name: '当前截图', exact: true }).click();

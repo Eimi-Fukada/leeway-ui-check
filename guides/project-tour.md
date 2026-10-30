@@ -34,6 +34,6 @@ Task 固定参考图与验收条件；Candidate 标识一轮 URL 页面采集候
 
 submit 在短文件锁内去重登记。新实现使用新 request_id，重试复用原 ID。worker 通过租约和 fence 控制提交权，等待超时不取消评测。
 
-正式通过要求得分满足阈值、无阻断、已验证 profile。finalize 确认最新候选的持久化报告和证据，返回 evaluation_id、target_url、截图 URI/哈希、evidence_scope=captured_page。验收范围是采集时的页面效果。
+通过要求得分满足阈值且无阻断。finalize 确认最新候选的持久化报告和证据，返回 evaluation_id、target_url、截图 URI/哈希、evidence_scope=captured_page。验收范围是采集时的页面效果。
 
 数据保存在 HARNESS_HOME 下的 SQLite 与证据目录。Candidate 表保存 ID、任务、状态、目标 URL 和创建时间；报告使用 schema_version=1.1。

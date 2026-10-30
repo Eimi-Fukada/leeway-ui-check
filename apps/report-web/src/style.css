@@ -600,3 +600,42 @@ header p {
     grid-template-columns: 1fr;
   }
 }
+
+.assessment-panel {
+  margin: 16px 0;
+  padding: 18px;
+  border: 1px solid #dce0d5;
+  border-radius: 12px;
+  background: #fff;
+}
+.assessment-panel h2 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+.assessment-panel p {
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.dimension-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.dimension-grid article {
+  padding: 12px;
+  background: #f4f6ef;
+  border-radius: 8px;
+}
+.dimension-grid strong {
+  font-size: 12px;
+}
+.dimension-grid article div {
+  font-size: 20px;
+  margin-top: 8px;
+}
+@media (max-width: 600px) {
+  .dimension-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

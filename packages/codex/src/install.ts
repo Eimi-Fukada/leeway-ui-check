@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, cp } from 'node:fs/promises';
 import os from 'node:os';
+import { startToolName } from './hooks.js';
 
 // Produce concrete project-local wiring; never edit global Codex config or remove other hooks.
 /**
@@ -47,7 +48,7 @@ export async function installCodexWorkflow(
     for (const entry of entries)
       entry.hooks = entry.hooks.filter((h) => h.statusMessage !== handler.statusMessage);
     const entry = {
-      ...(event === 'PostToolUse' ? { matcher: '^mcp__leeway-ui-check__ui_check_start$' } : {}),
+      ...(event === 'PostToolUse' ? { matcher: `^${startToolName}$` } : {}),
       hooks: [{ ...handler, timeout: event === 'Interrupt' ? 3 : 10 }],
     };
     hooks[event] = [...entries.filter((e) => e.hooks.length), entry];
@@ -57,7 +58,14 @@ export async function installCodexWorkflow(
   await mkdir(skillDir, { recursive: true });
   const source = path.join(repo, '.agents/skills/leeway-ui-check/SKILL.md');
   const target = path.join(skillDir, 'SKILL.md');
-  if (path.resolve(source) !== path.resolve(target)) await copyFile(source, target);
+  if (path.resolve(source) !== path.resolve(target)) {
+    await writeFile(
+      target,
+      (await readFile(source, 'utf8')).replaceAll('<HARNESS_ROOT>', repo.split(path.sep).join('/')),
+    );
+    for (const dir of ['scripts', 'references'])
+      await cp(path.join(path.dirname(source), dir), path.join(skillDir, dir), { recursive: true });
+  }
   await writeFile(file, JSON.stringify(config, null, 2) + '\n', 'utf8');
   return {
     hooks: file,

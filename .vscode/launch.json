@@ -9,6 +9,23 @@
       "port": 9229,
       "sourceMaps": true,
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    },
+    {
+      "name": "Attach Leeway MCP (选择实际端口)",
+      "type": "node",
+      "request": "attach",
+      "address": "127.0.0.1",
+      "port": "${input:leewayPort}",
+      "sourceMaps": true,
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "leewayPort",
+      "type": "promptString",
+      "description": "填写本次 Codex MCP 实例的调试端口（来自 Leeway debugger ready 日志）",
+      "default": "9229"
     }
   ]
 }

@@ -82,7 +82,7 @@ export function inspectRegions(
       severity: region.critical ? 'high' : 'medium',
       region_id: region.region_id,
       reference_bbox_px: region.bbox,
-      ...(valid
+      ...(valid && region.bbox
         ? {
             actual_bbox_px: box,
             delta_px: {
@@ -106,7 +106,7 @@ export function inspectRegions(
   };
   for (const region of config.regions) {
     const item = actual.find((r) => r.region_id === region.region_id);
-    layoutWeight += region.weight;
+    if (region.bbox) layoutWeight += region.weight;
     if (region.expected_text !== undefined) textWeight += region.weight;
     if (!item || item.count !== 1 || !item.bbox || !item.visible) {
       if (item && item.count > 1) {
@@ -115,7 +115,7 @@ export function inspectRegions(
       }
       if (region.critical) blockers.push(`critical_region_missing:${region.region_id}`);
       add(
-        'geometry',
+        region.bbox ? 'geometry' : 'text',
         region,
         item?.count && item.count > 1 ? '选择器匹配到多个元素' : '区域缺失或不可见',
         '检查区域的选择器、渲染条件和可见性',
@@ -123,23 +123,25 @@ export function inspectRegions(
       );
       continue;
     }
-    const score = geometry(
-      region.bbox,
-      item.bbox,
-      region.geometry_tolerance.position,
-      region.geometry_tolerance.size,
-    );
-    layout += score * region.weight;
-    if (score < 100)
-      add(
-        'geometry',
-        region,
-        `位置差 (${item.bbox.x - region.bbox.x}, ${item.bbox.y - region.bbox.y}) px；尺寸差 (${item.bbox.width - region.bbox.width}, ${item.bbox.height - region.bbox.height}) px`,
-        '检查容器尺寸、间距与盒模型',
-        item,
+    if (region.bbox) {
+      const score = geometry(
+        region.bbox,
+        item.bbox,
+        region.geometry_tolerance.position,
+        region.geometry_tolerance.size,
       );
-    if (region.critical && score < config.profile.critical_threshold)
-      blockers.push(`critical_geometry:${region.region_id}`);
+      layout += score * region.weight;
+      if (score < 100)
+        add(
+          'geometry',
+          region,
+          `位置差 (${item.bbox.x - region.bbox.x}, ${item.bbox.y - region.bbox.y}) px；尺寸差 (${item.bbox.width - region.bbox.width}, ${item.bbox.height - region.bbox.height}) px`,
+          '检查容器尺寸、间距与盒模型',
+          item,
+        );
+      if (region.critical && score < config.profile.critical_threshold)
+        blockers.push(`critical_geometry:${region.region_id}`);
+    }
     if (item.overflow) {
       if (region.critical) blockers.push(`critical_overflow:${region.region_id}`);
       add('text', region, 'DOM 内容超出元素边界', '检查文字换行、可用宽度与溢出样式', item);
@@ -172,7 +174,7 @@ export function inspectRegions(
   };
 }
 /**
- * 把像素、SSIM、标注布局/文字按 profile 加权，再结合阈值、校准、资源和交互检查形成结论。
+ * 把已测维度归一化加权为进展分；各维度独立达标，再结合区域、资源和交互检查形成结论。
  * 高总分不能覆盖阻断条件；返回 pass、needs_revision 或 review_required。
  */
 export function scoreReport(
@@ -195,15 +197,21 @@ export function scoreReport(
     layout: region.layout,
     text: region.text,
   };
-  const value =
-    components.pixel * p.weights.pixel +
-    components.structure * p.weights.structure +
-    (components.layout ?? 0) * p.weights.layout +
-    (components.text ?? 0) * p.weights.text;
+  // Aggregate is for progress only. Missing dimensions are not zero-quality evidence.
+  const entries = Object.entries(components) as [keyof typeof components, number | null][];
+  const measured = entries.filter(([, value]) => value !== null);
+  const totalWeight = measured.reduce((sum, [key]) => sum + p.weights[key], 0);
+  const value = totalWeight
+    ? 100 *
+      clamp(
+        1 -
+          measured.reduce((sum, [key, value]) => sum + (100 - value!) * p.weights[key], 0) /
+            (100 * totalWeight),
+      )
+    : measured.reduce((sum, [, value]) => sum + value!, 0) / measured.length;
   const blockers = [...region.blockers],
     issues = [...region.issues];
   if (!config.reference.confirmed) blockers.push('needs_reference_confirmation');
-  if (p.status !== 'validated') blockers.push('profile_not_validated');
   for (const error of captured.runtime) {
     blockers.push(error);
     issues.push({
@@ -230,11 +238,15 @@ export function scoreReport(
       evidence_artifact_ids: [],
     });
   }
-  const threshold =
-    config.threshold_operator === 'gt'
-      ? value > config.pass_threshold
-      : value >= config.pass_threshold;
-  if (!threshold) blockers.push('below_threshold');
+  // Each measured dimension must meet its gate; strong visual scores cannot erase bad content/layout.
+  for (const [key, component] of measured) {
+    const passed =
+      config.threshold_operator === 'gt'
+        ? component! > config.pass_threshold
+        : component! >= config.pass_threshold;
+    if (!passed) blockers.push(`below_threshold:${key}`);
+  }
+  if (blockers.some((b) => b.startsWith('below_threshold:'))) blockers.push('below_threshold');
   const review = region.review || !config.reference.confirmed;
   const verdict = review ? 'review_required' : !blockers.length ? 'pass' : 'needs_revision';
   return Report.parse({
@@ -244,6 +256,13 @@ export function scoreReport(
       ? null
       : { value, threshold: config.pass_threshold, calibrated: p.status === 'validated' },
     components: review ? null : components,
+    assessment: {
+      scope: config.regions.length ? 'annotated' : 'image_only',
+      layout_regions: config.regions.filter((r) => r.bbox).length,
+      text_regions: config.regions.filter((r) => r.expected_text !== undefined).length,
+      total_role: 'progress_indicator',
+      acceptance: 'independent_gates',
+    },
     blockers,
     issues,
     metrics: {

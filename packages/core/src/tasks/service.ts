@@ -14,6 +14,7 @@ import { ArtifactStore, hash, id } from '../storage/artifacts.js';
 import { normalizeImage, pixelCompare, regionPixels } from '../compare/images.js';
 import { ssim } from '../compare/ssim.js';
 import { capture } from '../capture/runner.js';
+import { loadAnnotations } from '../regions/annotations.js';
 import { scoreReport } from '../scoring/evaluate.js';
 import {
   buildFeedback,
@@ -97,7 +98,14 @@ export class TaskService {
    * 只固定评测要求；不会访问目标 URL、启动目标项目或进行截图比较。
    */
   async createTask(input: unknown) {
-    const config = TaskInput.parse(input);
+    const raw = TaskInput.parse(input);
+    if (raw.annotation_evidence) throw Error('annotation_evidence_is_server_managed');
+    if (raw.annotation_input && raw.regions.length)
+      throw Error('annotation_input_conflicts_with_regions');
+    if (raw.annotation_input && (raw.reference.crop || raw.reference.capture_mode !== 'viewport'))
+      throw Error('annotation_input_requires_uncropped_viewport');
+    // Load normalized reference before binding; baseline coordinates use that exact image.
+    const config = raw;
     if (config.profile.status === 'retired') throw Error('profile_retired');
     // 正式验收前，维护者应已导入独立的校准集和留出集证据；这里只复核存在性与完整性。
     if (config.profile.status === 'validated') {
@@ -119,6 +127,18 @@ export class TaskService {
     const normalized = await normalizeImage(bytes, config.reference.crop),
       reference = await this.artifact(normalized.png, 'png');
     const { width, height } = normalized;
+    if (config.annotation_input) {
+      const a = await loadAnnotations(config.annotation_input, normalized.png);
+      config.regions = a.regions;
+      config.annotation_evidence = {
+        reference: (await this.artifact(a.referenceBytes, 'json')).artifact_id,
+        bindings: (await this.artifact(a.bindingBytes, 'json')).artifact_id,
+        preview: (await this.artifact(a.preview, 'png')).artifact_id,
+        manifest: (await this.artifact(a.manifestBytes, 'json')).artifact_id,
+      };
+      delete config.annotation_input;
+      TaskInput.parse(config);
+    }
     if (config.reference.capture_mode === 'viewport') {
       const expected = config.reference.crop ?? {
         width: Math.round(
@@ -140,12 +160,15 @@ export class TaskService {
       )
         throw Error('crop_outside_viewport');
     }
-    for (const r of [...config.regions.map((r) => r.bbox), ...config.profile.masks])
+    for (const r of [
+      ...config.regions.flatMap((r) => (r.bbox ? [r.bbox] : [])),
+      ...config.profile.masks,
+    ])
       if (r.x + r.width > width || r.y + r.height > height)
         throw Error('reference_bbox_out_of_bounds');
-    for (const region of config.regions.filter((r) => r.critical))
+    for (const region of config.regions.filter((r) => r.critical && r.bbox))
       for (const mask of config.profile.masks) {
-        const b = region.bbox;
+        const b = region.bbox!;
         if (
           mask.x < b.x + b.width &&
           mask.x + mask.width > b.x &&
@@ -474,9 +497,7 @@ export class TaskService {
             ? 'evaluating'
             : report?.verdict === 'pass'
               ? 'ready_to_finalize'
-              : report?.next_action === 'review_configuration' ||
-                  (report?.blockers.includes('profile_not_validated') &&
-                    report.blockers.length === 1)
+              : report?.next_action === 'review_configuration'
                 ? 'blocked'
                 : report?.verdict === 'needs_revision'
                   ? 'needs_revision'
@@ -496,6 +517,7 @@ export class TaskService {
       })),
       issues_omitted: Math.max(0, (report?.issues.length ?? 0) - 8),
       blockers_omitted: 0,
+      assessment: report?.assessment ?? null,
       components: report?.components ?? null,
       schema_version: report?.schema_version ?? '1.1',
       visual_feedback: report?.visual_feedback ? summarizeFeedback(report.visual_feedback) : null,
@@ -516,9 +538,7 @@ export class TaskService {
             ? 'poll_status'
             : report?.verdict === 'pass'
               ? 'finalize'
-              : report?.blockers.includes('profile_not_validated') && report.blockers.length === 1
-                ? 'review_configuration'
-                : (report?.next_action ?? 'submit'),
+              : (report?.next_action ?? 'submit'),
     };
     // Preserve bounded transport even when page text/selectors or failure logs are unusually large.
     while (Buffer.byteLength(JSON.stringify(result)) > 32768) {
@@ -539,7 +559,7 @@ export class TaskService {
     return result;
   }
   /**
-   * 校验最新候选已通过、评分配置已验证且持久化证据完整，然后正式结束任务。
+   * 校验最新候选已通过、持久化证据完整，然后正式结束任务。
    * 只确认采集时页面的验收结果，不重新访问 URL，也不验证源码或未来页面内容。
    */
   async finalizeTask(taskId: string, candidateId: string) {
@@ -562,11 +582,7 @@ export class TaskService {
       taskId,
       candidateId,
     );
-    if (
-      !e ||
-      Report.parse(JSON.parse(e.report)).verdict !== 'pass' ||
-      t.config.profile.status !== 'validated'
-    )
+    if (!e || Report.parse(JSON.parse(e.report)).verdict !== 'pass')
       throw Error('candidate_not_passed');
     const report = Report.parse(JSON.parse(e.report));
     if (
@@ -741,7 +757,17 @@ export class TaskService {
       evidence_scope: 'captured_page' as const,
       evaluator_version: 'leeway-0.1.0' as const,
       status: 'completed' as const,
-      artifacts: { reference: t.reference_artifact as string },
+      artifacts: {
+        reference: t.reference_artifact as string,
+        ...(t.config.annotation_evidence
+          ? {
+              annotations: t.config.annotation_evidence.reference,
+              bindings: t.config.annotation_evidence.bindings,
+              annotation_preview: t.config.annotation_evidence.preview,
+              annotation_manifest: t.config.annotation_evidence.manifest,
+            }
+          : {}),
+      },
       environment: null,
       region_metrics: [],
       budget_remaining: this.remaining(t.id),
@@ -823,6 +849,7 @@ export class TaskService {
         ...base,
         environment: captured.environment,
         artifacts: {
+          ...base.artifacts,
           reference: task.reference_artifact,
           actual: actual.artifact_id,
           diff: diff.artifact_id,

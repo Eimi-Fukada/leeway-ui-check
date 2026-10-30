@@ -117,43 +117,45 @@ export function pixelCompare(
 export function regionPixels(
   reference: Normalized,
   actual: Normalized,
-  regions: { region_id: string; bbox: { x: number; y: number; width: number; height: number } }[],
+  regions: { region_id: string; bbox?: { x: number; y: number; width: number; height: number } }[],
   profile: EvaluationProfile,
 ) {
-  return regions.map((region) => {
-    const r = region.bbox,
-      x = Math.floor(r.x),
-      y = Math.floor(r.y),
-      width = Math.ceil(r.x + r.width) - x,
-      height = Math.ceil(r.y + r.height) - y;
-    // 从全图 RGBA 数据复制区域像素，使参考图和候选图使用完全相同的边界。
-    const extract = (input: Normalized) => {
-      const data = Buffer.alloc(width * height * 4);
-      for (let row = 0; row < height; row++)
-        input.data.copy(
-          data,
-          row * width * 4,
-          ((y + row) * input.width + x) * 4,
-          ((y + row) * input.width + x + width) * 4,
-        );
-      return { data, width, height, png: Buffer.alloc(0) };
-    };
-    const masks = profile.masks
-      .map((m) => ({
-        x: Math.max(x, m.x),
-        y: Math.max(y, m.y),
-        right: Math.min(x + width, m.x + m.width),
-        bottom: Math.min(y + height, m.y + m.height),
-      }))
-      .filter((m) => m.right > m.x && m.bottom > m.y)
-      .map((m) => ({ x: m.x - x, y: m.y - y, width: m.right - m.x, height: m.bottom - m.y }));
-    const metric = pixelCompare(extract(reference), extract(actual), { ...profile, masks });
-    return {
-      region_id: region.region_id,
-      evaluated_pixels: metric.evaluated_pixels,
-      difference_ratio: metric.difference_ratio,
-      pixel_score:
-        100 * Math.max(0, Math.min(1, 1 - metric.difference_ratio / profile.pixel.d_bad)),
-    };
-  });
+  return regions
+    .filter((region) => region.bbox)
+    .map((region) => {
+      const r = region.bbox!,
+        x = Math.floor(r.x),
+        y = Math.floor(r.y),
+        width = Math.ceil(r.x + r.width) - x,
+        height = Math.ceil(r.y + r.height) - y;
+      // 从全图 RGBA 数据复制区域像素，使参考图和候选图使用完全相同的边界。
+      const extract = (input: Normalized) => {
+        const data = Buffer.alloc(width * height * 4);
+        for (let row = 0; row < height; row++)
+          input.data.copy(
+            data,
+            row * width * 4,
+            ((y + row) * input.width + x) * 4,
+            ((y + row) * input.width + x + width) * 4,
+          );
+        return { data, width, height, png: Buffer.alloc(0) };
+      };
+      const masks = profile.masks
+        .map((m) => ({
+          x: Math.max(x, m.x),
+          y: Math.max(y, m.y),
+          right: Math.min(x + width, m.x + m.width),
+          bottom: Math.min(y + height, m.y + m.height),
+        }))
+        .filter((m) => m.right > m.x && m.bottom > m.y)
+        .map((m) => ({ x: m.x - x, y: m.y - y, width: m.right - m.x, height: m.bottom - m.y }));
+      const metric = pixelCompare(extract(reference), extract(actual), { ...profile, masks });
+      return {
+        region_id: region.region_id,
+        evaluated_pixels: metric.evaluated_pixels,
+        difference_ratio: metric.difference_ratio,
+        pixel_score:
+          100 * Math.max(0, Math.min(1, 1 - metric.difference_ratio / profile.pixel.d_bad)),
+      };
+    });
 }

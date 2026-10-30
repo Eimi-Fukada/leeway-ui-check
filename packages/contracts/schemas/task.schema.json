@@ -415,18 +415,71 @@
                   "position",
                   "size"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "default": {
+                  "position": 10,
+                  "size": 10
+                }
               }
             },
             "required": [
               "region_id",
               "kind",
-              "bbox",
-              "selector",
-              "geometry_tolerance"
+              "selector"
             ],
             "additionalProperties": false
           }
+        },
+        "annotation_input": {
+          "type": "object",
+          "properties": {
+            "reference_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "bindings_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "preview_path": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "reference_path",
+            "bindings_path",
+            "preview_path"
+          ],
+          "additionalProperties": false
+        },
+        "annotation_evidence": {
+          "type": "object",
+          "properties": {
+            "reference": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "bindings": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "preview": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            },
+            "manifest": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            }
+          },
+          "required": [
+            "reference",
+            "bindings",
+            "preview",
+            "manifest"
+          ],
+          "additionalProperties": false
         },
         "required_checks": {
           "type": "array",
