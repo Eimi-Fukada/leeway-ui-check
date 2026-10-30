@@ -57,11 +57,18 @@ Bindings file:
 }
 ```
 
-Initial fixed policy: every selected region is required (`critical=true`), equal regional weight,
-10-image-pixel position/size deduction scales. These are provisional policy values, not proven
-human acceptance tolerances. The existing critical geometry/pixel gates apply to boxes; content-only
-regions get text/visibility checks without local pixel or geometry scores. This is selected-region
-coverage, not a guarantee that Codex found every relevant element. Do not change rules to pass.
+Imported regions are always `usage=diagnostic`, `critical=false`, including files whose source is human.
+Source alone does not prove developer approval. Main scores use image metrics only; layout/text proposal
+scores live in `annotation_diagnostics`, never increase main score and never block acceptance.
+Missing/ambiguous proposals produce partial diagnostics, not acceptance failures. Regional pixel metrics
+remain available for visual investigation without `critical_pixels` blockers.
+
+Read diagnostic findings together with reference/actual crops and current DOM styles. Verify mismatched
+text against the reference before changing content; a proposal may be wrong. Use layout matches to narrow
+investigation toward visual styling, not to claim the whole page is correct. When reporting remaining
+uncertainties, include selector, measured deltas/current styles and evidence, distinguishing facts from guesses.
+Developer-confirmed requirements must be explicitly supplied as acceptance regions (not inferred from
+`source=human`). Do not promote proposals or change acceptance rules just to pass.
 
 If annotation cannot be completed reliably, report why. Image-only evaluation is an explicit fallback,
 not an annotated acceptance result. No OCR, font identification, or independent review is implied.

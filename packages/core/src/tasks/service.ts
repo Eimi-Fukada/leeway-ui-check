@@ -166,7 +166,9 @@ export class TaskService {
     ])
       if (r.x + r.width > width || r.y + r.height > height)
         throw Error('reference_bbox_out_of_bounds');
-    for (const region of config.regions.filter((r) => r.critical && r.bbox))
+    for (const region of config.regions.filter(
+      (r) => r.usage !== 'diagnostic' && r.critical && r.bbox,
+    ))
       for (const mask of config.profile.masks) {
         const b = region.bbox!;
         if (
@@ -517,6 +519,17 @@ export class TaskService {
       })),
       issues_omitted: Math.max(0, (report?.issues.length ?? 0) - 8),
       blockers_omitted: 0,
+      annotation_diagnostics: report?.annotation_diagnostics
+        ? {
+            ...report.annotation_diagnostics,
+            findings_omitted: Math.max(0, report.annotation_diagnostics.findings.length - 8),
+            findings: report.annotation_diagnostics.findings.slice(0, 8).map((f) => ({
+              ...f,
+              observed: f.observed.slice(0, 600),
+              suggestion: f.suggestion.slice(0, 600),
+            })),
+          }
+        : null,
       assessment: report?.assessment ?? null,
       components: report?.components ?? null,
       schema_version: report?.schema_version ?? '1.1',
@@ -542,7 +555,10 @@ export class TaskService {
     };
     // Preserve bounded transport even when page text/selectors or failure logs are unusually large.
     while (Buffer.byteLength(JSON.stringify(result)) > 32768) {
-      if (result.issues.length) {
+      if (result.annotation_diagnostics?.findings.length) {
+        result.annotation_diagnostics.findings.pop();
+        result.annotation_diagnostics.findings_omitted++;
+      } else if (result.issues.length) {
         result.issues.pop();
         result.issues_omitted++;
       } else if (result.visual_feedback?.regions.length) {
@@ -721,7 +737,7 @@ export class TaskService {
         job.id,
         job.fence_token,
       );
-      for (const issue of report.issues)
+      for (const issue of [...report.issues, ...(report.annotation_diagnostics?.findings ?? [])])
         this.store.run(
           'INSERT OR REPLACE INTO issues(id,evaluation_id,json) VALUES(?,?,?)',
           issue.issue_id,
@@ -867,7 +883,11 @@ export class TaskService {
     report.region_metrics = regionPixels(refImage, actualImage, config.regions, config.profile);
     for (const metric of report.region_metrics) {
       const region = config.regions.find((r) => r.region_id === metric.region_id)!;
-      if (region.critical && metric.pixel_score < config.profile.critical_threshold) {
+      if (
+        region.usage !== 'diagnostic' &&
+        region.critical &&
+        metric.pixel_score < config.profile.critical_threshold
+      ) {
         report.blockers.push(`critical_pixels:${region.region_id}`);
         report.issues.push({
           issue_id: `pixels_${region.region_id}`,
@@ -886,7 +906,7 @@ export class TaskService {
       report.verdict = 'needs_revision';
       report.next_action = 'revise_and_evaluate';
     }
-    for (const issue of report.issues)
+    for (const issue of [...report.issues, ...(report.annotation_diagnostics?.findings ?? [])])
       issue.evidence_artifact_ids = [actual.artifact_id, diff.artifact_id, dom.artifact_id];
     const previousRow = this.store.get(
       "SELECT report FROM evaluations WHERE task_id=? AND state='completed' AND id<>? ORDER BY created_at DESC,rowid DESC LIMIT 1",
@@ -942,7 +962,10 @@ export class TaskService {
       if (
         history.length === t.config.profile.stall_window &&
         history.every(
-          (r) => r.score && r.environment?.fingerprint === report.environment?.fingerprint,
+          (r) =>
+            r.score &&
+            r.assessment?.main_score_basis === report.assessment?.main_score_basis &&
+            r.environment?.fingerprint === report.environment?.fingerprint,
         ) &&
         Math.max(...history.map((r) => r.score!.value)) -
           Math.min(...history.map((r) => r.score!.value)) <

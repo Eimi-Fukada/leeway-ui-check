@@ -59,7 +59,7 @@ export const ImplementationBindings = z
   })
   .strict();
 
-/** One fixed initial policy: every explicitly selected region is required, with equal weight. */
+/** One fixed initial policy: imported proposals are diagnostic regardless of the source declaration. */
 export function bindAnnotations(reference: unknown, bindings: unknown) {
   const a = ReferenceAnnotations.parse(reference),
     b = ImplementationBindings.parse(bindings);
@@ -77,7 +77,9 @@ export function bindAnnotations(reference: unknown, bindings: unknown) {
     bbox: r.bbox,
     expected_text: r.expected_text,
     selector: mapping.get(r.region_id)!,
-    critical: true,
+    usage: 'diagnostic' as const,
+    source: a.source,
+    critical: false,
     weight: 1,
     geometry_tolerance: { position: 10, size: 10 },
   }));

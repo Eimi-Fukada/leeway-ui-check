@@ -390,6 +390,21 @@
               "expected_text": {
                 "type": "string"
               },
+              "usage": {
+                "type": "string",
+                "enum": [
+                  "diagnostic",
+                  "acceptance"
+                ],
+                "default": "acceptance"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "codex",
+                  "human"
+                ]
+              },
               "critical": {
                 "type": "boolean",
                 "default": false

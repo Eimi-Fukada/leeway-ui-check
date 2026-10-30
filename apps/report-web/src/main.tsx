@@ -186,12 +186,14 @@ function App() {
                       : '历史评测'}
                 </h2>
                 <p>
-                  综合分用于观察进展，不代表还原百分比。各已测维度及关键区域独立验收；同一问题可能影响多个指标。
+                  {report.annotation_diagnostics
+                    ? '主分仅包含像素和结构指标，不代表还原百分比。标注诊断不计分、不阻断；明确配置的验收要求独立检查。'
+                    : '历史报告保留原评分与验收语义。'}
                 </p>
                 <div className="dimension-grid">
                   {(['pixel', 'structure', 'layout', 'text'] as const).map((key, index) => (
                     <article key={key}>
-                      <strong>{['像素', '结构 SSIM', '布局', '文字内容'][index]}</strong>
+                      <strong>{['像素', '结构 SSIM', '验收布局', '验收文字'][index]}</strong>
                       <div>
                         {report.components?.[key] == null
                           ? '未评测'
@@ -206,6 +208,29 @@ function App() {
                     {report.assessment.text_regions} 个区域；标注范围之外不作完整覆盖保证。
                   </p>
                 )}
+                {report.annotation_diagnostics &&
+                  report.annotation_diagnostics.status !== 'unavailable' && (
+                    <div>
+                      <h3>标注诊断（不计入主分，不阻断验收）</h3>
+                      <p>
+                        状态：{report.annotation_diagnostics.status} · 布局{' '}
+                        {report.annotation_diagnostics.layout_regions} 项 · 文字{' '}
+                        {report.annotation_diagnostics.text_regions} 项
+                      </p>
+                      <p>
+                        布局匹配：
+                        {report.annotation_diagnostics.layout_score?.toFixed(1) ?? '不可可靠计算'} ·
+                        文字匹配：
+                        {report.annotation_diagnostics.text_score?.toFixed(1) ?? '不可可靠计算'}
+                      </p>
+                      {report.annotation_diagnostics.findings.map((f) => (
+                        <p key={f.issue_id}>
+                          <strong>{f.region_id}</strong>：{f.observed}。请对照参考图确认后修复。
+                        </p>
+                      ))}
+                      <p>局部像素差异用于定位；标注正确性与覆盖完整性尚需复核。</p>
+                    </div>
+                  )}
                 {report.artifacts.annotations && (
                   <p>
                     <a href={imageUrl(report.artifacts.annotations)}>参考标注 JSON</a> ·{' '}

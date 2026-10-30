@@ -8,7 +8,7 @@ Use this workflow when the user requests Leeway UI reconstruction. Follow explic
 Before screenshot reconstruction, follow [reference annotation instructions](references/annotations.md).
 Use your vision to create candidate reference-only boxes/copy, execute `scripts/render_annotations.py`,
 actually inspect the overlay and crops, then bind implementation selectors. Supply `annotation_input`
-at start. Do not claim four-dimensional acceptance when annotations are absent. Unresolved references
+at start. Imported annotations are supplemental diagnostics; read `annotation_diagnostics`, verify candidates against the reference, and use local crops to guide repair. They do not raise main scores or block acceptance. Do not claim four-dimensional acceptance when annotations are absent. Unresolved references
 require review; do not change expected values to fit the implementation.
 Harness checkout for normalization/runtime tools: `<HARNESS_ROOT>` (in this source checkout, the repository root).
 

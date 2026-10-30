@@ -14,7 +14,7 @@ import { TaskService } from '../tasks/service.js';
 /**
  * 发送给 MCP 客户端的工作流指引，说明何时查询、修复、重评及停止。
  */
-export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images, fix code and resubmit without asking the user to continue. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. For screenshot reconstruction, prepare reference-only annotations, render and inspect the overlay, then provide annotation_input at start. Content-only text omits geometry. Never change acceptance rules to pass.`;
+export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images, fix code and resubmit without asking the user to continue. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. For screenshot reconstruction, prepare reference-only annotations, render and inspect the overlay, then provide annotation_input at start. Content-only text omits geometry. Imported annotations are diagnostic only: read annotation_diagnostics and crops, verify against the reference before editing; they never raise the main score or block acceptance. Never change acceptance rules to pass.`;
 const ResponsiveInput = z
   .object({
     required: z.boolean().default(false),
@@ -68,6 +68,7 @@ export const AgentStatus = z
     issues: z.array(Report.innerType().shape.issues.element),
     issues_omitted: z.number().int().min(0),
     blockers_omitted: z.number().int().min(0),
+    annotation_diagnostics: Report.innerType().shape.annotation_diagnostics.nullable(),
     assessment: Report.innerType().shape.assessment.nullable(),
     components: Report.innerType().shape.components,
     schema_version: z.string(),
@@ -159,7 +160,11 @@ export class UiWorkflow {
         const profile = storedProfile
           ? JSON.parse(storedProfile.json)
           : input.regions.length || input.annotation_input
-            ? { ...defaultProfile, profile_id: 'facade-annotated-v1' }
+            ? {
+                ...defaultProfile,
+                profile_id: 'facade-annotated-diagnostic-v2',
+                weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
+              }
             : {
                 ...defaultProfile,
                 profile_id: 'facade-pixel-diagnostic-v1',

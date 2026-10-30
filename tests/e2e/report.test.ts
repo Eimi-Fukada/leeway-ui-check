@@ -71,12 +71,18 @@ it('renders report images, switches history/views and fits a 390px viewport', as
     candidate = await service.registerCandidate(task.task_id);
   service.evaluateCandidate(candidate.candidate_id, 'report');
   await service.runNext();
+  const diagnosticReport = service.getTaskStatus(task.task_id).evaluations[0].report!;
+  expect(diagnosticReport.annotation_diagnostics?.findings.length).toBeGreaterThan(0);
+  expect(diagnosticReport.blockers.some((b: string) => b.startsWith('critical_pixels:'))).toBe(
+    false,
+  );
+  expect(diagnosticReport.components!.layout).toBeNull();
   await writeFile(path.join(root, 'target/index.html'), fixtureHtml('exact'));
   const exact = await service.registerCandidate(task.task_id);
   service.evaluateCandidate(exact.candidate_id, 'exact');
   await service.runNext();
   const { server, url } = await startReportServer(service, 0),
-    browser = await chromium.launch();
+    browser = await chromium.launch({ channel: 'chrome' });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }),
     errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -85,6 +91,9 @@ it('renders report images, switches history/views and fits a 390px viewport', as
     await page.getByRole('img', { name: '差异图', exact: true }).waitFor();
     expect(await page.locator('.score').innerText()).toContain('100.0');
     expect(await page.locator('.assessment-panel').innerText()).toContain('标注区域评测');
+    expect(await page.locator('.assessment-panel').innerText()).toContain(
+      '标注诊断（不计入主分，不阻断验收）',
+    );
     await page.getByRole('button', { name: '标注预览', exact: true }).click();
     await page.getByRole('img', { name: '参考标注预览', exact: true }).waitFor();
     expect(await page.locator('.canvas .region').count()).toBe(0);

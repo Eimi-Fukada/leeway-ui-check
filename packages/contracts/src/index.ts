@@ -28,6 +28,8 @@ export const Region = z
     bbox: Rect.optional(),
     selector: z.string().min(1),
     expected_text: z.string().optional(),
+    usage: z.enum(['diagnostic', 'acceptance']).default('acceptance'),
+    source: z.enum(['codex', 'human']).optional(),
     critical: z.boolean().default(false),
     weight: finite.positive().default(1),
     geometry_tolerance: z
@@ -303,8 +305,21 @@ export const Report = z
         scope: z.enum(['image_only', 'annotated']),
         layout_regions: z.number().int().min(0),
         text_regions: z.number().int().min(0),
+        main_score_basis: z.literal('image_metrics').optional(),
         total_role: z.literal('progress_indicator'),
         acceptance: z.literal('independent_gates'),
+      })
+      .strict()
+      .optional(),
+    annotation_diagnostics: z
+      .object({
+        status: z.enum(['available', 'partial', 'unavailable']),
+        layout_score: Score.nullable(),
+        text_score: Score.nullable(),
+        layout_regions: z.number().int().min(0),
+        text_regions: z.number().int().min(0),
+        findings: z.array(Issue),
+        findings_omitted: z.number().int().min(0).optional(),
       })
       .strict()
       .optional(),

@@ -128,7 +128,7 @@ describe('deterministic acceptance gates', () => {
     expect(score({ ...config, pass_threshold: 100, threshold_operator: 'gt' }).verdict).toBe(
       'needs_revision',
     );
-    const report = score(config, 10.0001 / 140);
+    const report = score(config, (10.0001 * 0.55) / 140);
     expect(report.score!.value).toBeCloseTo(89.9999, 5);
     expect(report.score!.value.toFixed(1)).toBe('90.0');
     expect(report.verdict).toBe('needs_revision');
@@ -221,4 +221,38 @@ it('checks content-only text independently of CSS boxes and leaves layout unmeas
   expect(images.assessment?.scope).toBe('image_only');
   expect(images.components!.layout).toBeNull();
   expect(images.components!.text).toBeNull();
+});
+
+it('keeps incorrect, missing and ambiguous AI proposals out of main scores and gates', () => {
+  const baseline = score({ ...config, regions: [] });
+  const proposal = {
+    ...config.regions[0],
+    usage: 'diagnostic' as const,
+    critical: true,
+    expected_text: 'Wrong',
+    bbox: { x: 50, y: 50, width: 20, height: 20 },
+  };
+  const report = score({ ...config, regions: [proposal] });
+  expect(report.score).toEqual(baseline.score);
+  expect(report.components!.layout).toBeNull();
+  expect(report.verdict).toBe('pass');
+  expect(report.annotation_diagnostics!.findings.length).toBeGreaterThan(0);
+  expect(report.annotation_diagnostics!.text_score).toBeLessThan(100);
+  const ambiguous = score({ ...config, regions: [{ ...proposal, region_id: 'absent' }] });
+  expect(ambiguous.verdict).toBe('pass');
+  expect(ambiguous.annotation_diagnostics!.status).toBe('partial');
+  expect(ambiguous.annotation_diagnostics!.text_score).toBeNull();
+  const originalCount = captured.regions[0].count;
+  captured.regions[0].count = 2;
+  try {
+    const duplicate = score({ ...config, regions: [proposal] });
+    expect(duplicate.verdict).toBe('pass');
+    expect(duplicate.annotation_diagnostics!.status).toBe('partial');
+    expect(duplicate.annotation_diagnostics!.findings[0].observed).toContain('多个');
+  } finally {
+    captured.regions[0].count = originalCount;
+  }
+  const confirmed = score({ ...config, regions: [{ ...proposal, usage: 'acceptance' }] });
+  expect(confirmed.verdict).toBe('needs_revision');
+  expect(confirmed.blockers).toContain('critical_text:title');
 });

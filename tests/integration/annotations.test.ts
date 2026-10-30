@@ -88,7 +88,7 @@ it('renders and imports reference-only annotations, freezes evidence, and reject
     const run = await workflow.call('ui_check_start', start);
     const config = service.task(run.run_id as string).config;
     expect(config.regions[1].bbox).toBeUndefined();
-    expect(config.regions.every((r) => r.critical)).toBe(true);
+    expect(config.regions.every((r) => !r.critical && r.usage === 'diagnostic')).toBe(true);
     expect(config.annotation_input).toBeUndefined();
     expect(config.annotation_evidence?.preview).toBeTruthy();
     expect(

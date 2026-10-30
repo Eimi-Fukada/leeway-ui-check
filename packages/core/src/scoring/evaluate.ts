@@ -189,17 +189,41 @@ export function scoreReport(
   width: number,
   height: number,
 ): EvaluationReport {
-  const region = inspectRegions(config, captured.regions, width, height),
+  const acceptanceRegions = config.regions.filter((r) => r.usage !== 'diagnostic');
+  const diagnosticRegions = config.regions.filter((r) => r.usage === 'diagnostic');
+  const region = inspectRegions(
+      { ...config, regions: acceptanceRegions },
+      captured.regions,
+      width,
+      height,
+    ),
     p = config.profile;
+  // Ambiguous/missing proposals remain diagnostic findings, never acceptance blockers.
+  const diagnostic = inspectRegions(
+    { ...config, regions: diagnosticRegions.map((r) => ({ ...r, critical: false })) },
+    captured.regions,
+    width,
+    height,
+  );
+  const unresolvedDiagnostic = diagnosticRegions.filter((r) => {
+    const actual = captured.regions.find((a) => a.region_id === r.region_id);
+    return !actual || actual.count !== 1 || !actual.visible || !actual.bbox;
+  });
+  if (unresolvedDiagnostic.length) {
+    if (unresolvedDiagnostic.some((r) => r.bbox)) diagnostic.layout = null;
+    if (unresolvedDiagnostic.some((r) => r.expected_text !== undefined)) diagnostic.text = null;
+  }
   const components = {
     pixel: 100 * clamp(1 - pixels.difference_ratio / p.pixel.d_bad),
     structure: 100 * clamp((ssim - p.ssim.s_bad) / (1 - p.ssim.s_bad)),
     layout: region.layout,
     text: region.text,
   };
-  // Aggregate is for progress only. Missing dimensions are not zero-quality evidence.
+  // Main score uses image metrics only. Explicit acceptance regions keep independent gates.
   const entries = Object.entries(components) as [keyof typeof components, number | null][];
-  const measured = entries.filter(([, value]) => value !== null);
+  const measured = entries.filter(
+    ([key, value]) => value !== null && (key === 'pixel' || key === 'structure'),
+  );
   const totalWeight = measured.reduce((sum, [key]) => sum + p.weights[key], 0);
   const value = totalWeight
     ? 100 *
@@ -209,6 +233,7 @@ export function scoreReport(
             (100 * totalWeight),
       )
     : measured.reduce((sum, [, value]) => sum + value!, 0) / measured.length;
+  const diagnosticWeight = diagnosticRegions.length > 0;
   const blockers = [...region.blockers],
     issues = [...region.issues];
   if (!config.reference.confirmed) blockers.push('needs_reference_confirmation');
@@ -239,7 +264,7 @@ export function scoreReport(
     });
   }
   // Each measured dimension must meet its gate; strong visual scores cannot erase bad content/layout.
-  for (const [key, component] of measured) {
+  for (const [key, component] of entries.filter(([, value]) => value !== null)) {
     const passed =
       config.threshold_operator === 'gt'
         ? component! > config.pass_threshold
@@ -256,10 +281,23 @@ export function scoreReport(
       ? null
       : { value, threshold: config.pass_threshold, calibrated: p.status === 'validated' },
     components: review ? null : components,
+    annotation_diagnostics: {
+      status: !diagnosticWeight
+        ? 'unavailable'
+        : unresolvedDiagnostic.length
+          ? 'partial'
+          : 'available',
+      layout_score: diagnostic.layout,
+      text_score: diagnostic.text,
+      layout_regions: diagnosticRegions.filter((r) => r.bbox).length,
+      text_regions: diagnosticRegions.filter((r) => r.expected_text !== undefined).length,
+      findings: diagnostic.issues,
+    },
     assessment: {
       scope: config.regions.length ? 'annotated' : 'image_only',
       layout_regions: config.regions.filter((r) => r.bbox).length,
       text_regions: config.regions.filter((r) => r.expected_text !== undefined).length,
+      main_score_basis: 'image_metrics',
       total_role: 'progress_indicator',
       acceptance: 'independent_gates',
     },

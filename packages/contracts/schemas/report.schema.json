@@ -501,6 +501,10 @@
               "type": "integer",
               "minimum": 0
             },
+            "main_score_basis": {
+              "type": "string",
+              "const": "image_metrics"
+            },
             "total_role": {
               "type": "string",
               "const": "progress_indicator"
@@ -516,6 +520,231 @@
             "text_regions",
             "total_role",
             "acceptance"
+          ],
+          "additionalProperties": false
+        },
+        "annotation_diagnostics": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partial",
+                "unavailable"
+              ]
+            },
+            "layout_score": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "text_score": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "layout_regions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "text_regions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "findings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "issue_id": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "dimension",
+                      "pixel",
+                      "geometry",
+                      "text",
+                      "asset",
+                      "interaction",
+                      "runtime",
+                      "unstable_capture"
+                    ]
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ]
+                  },
+                  "region_id": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+                  },
+                  "reference_bbox_px": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "width": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "width",
+                      "height"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "actual_bbox_px": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "width": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "width",
+                      "height"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "delta_px": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "width",
+                      "height"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "element": {
+                    "type": "object",
+                    "properties": {
+                      "selector": {
+                        "type": "string"
+                      },
+                      "match_method": {
+                        "type": "string",
+                        "const": "explicit"
+                      },
+                      "confidence": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "required": [
+                      "selector",
+                      "match_method",
+                      "confidence"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "observed": {
+                    "type": "string"
+                  },
+                  "suggestion": {
+                    "type": "string"
+                  },
+                  "suggestion_kind": {
+                    "type": "string",
+                    "const": "hypothesis"
+                  },
+                  "evidence_artifact_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+                    }
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "kind",
+                  "severity",
+                  "observed",
+                  "suggestion",
+                  "suggestion_kind",
+                  "evidence_artifact_ids"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "findings_omitted": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "status",
+            "layout_score",
+            "text_score",
+            "layout_regions",
+            "text_regions",
+            "findings"
           ],
           "additionalProperties": false
         },

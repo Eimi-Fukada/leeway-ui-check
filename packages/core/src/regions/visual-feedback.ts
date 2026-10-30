@@ -218,6 +218,7 @@ export async function buildFeedback(input: {
   if (previous) {
     const p = previous.report;
     const compatible =
+      p.assessment?.main_score_basis === report.assessment?.main_score_basis &&
       p.reference_sha256 === report.reference_sha256 &&
       p.profile_sha256 === report.profile_sha256 &&
       p.evaluator_version === report.evaluator_version &&
