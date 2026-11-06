@@ -71,9 +71,56 @@ export const Check = z
           z
             .object({ action: z.literal('value'), selector: z.string().min(1), value: z.string() })
             .strict(),
+          z
+            .object({
+              action: z.literal('scroll'),
+              selector: z.string().min(1),
+              axis: z.enum(['x', 'y']).default('x'),
+              delta: finite,
+            })
+            .strict(),
+          z
+            .object({
+              action: z.literal('gesture'),
+              selector: z.string().min(1),
+              axis: z.enum(['x', 'y']).default('x'),
+              distance: finite.positive(),
+              duration_ms: z.number().int().min(0).max(5000).default(300),
+            })
+            .strict(),
+          z
+            .object({
+              action: z.literal('scroll_position'),
+              selector: z.string().min(1),
+              axis: z.enum(['x', 'y']).default('x'),
+              min_delta: finite.min(0).default(1),
+            })
+            .strict(),
+          z.object({ action: z.literal('assert_visible'), selector: z.string().min(1) }).strict(),
         ]),
       )
       .min(1),
+  })
+  .strict();
+/** Agent hypotheses captured before implementation has stable DOM selectors. */
+export const InteractionIntent = z
+  .object({
+    id: Id,
+    intent: z.enum([
+      'horizontal_scroll',
+      'vertical_scroll',
+      'open_panel',
+      'close_panel',
+      'tab_switch',
+      'dropdown_open',
+      'form_submit',
+      'input_change',
+      'toggle',
+      'navigate',
+    ]),
+    description: z.string().max(500).optional(),
+    confidence: finite.min(0).max(1).default(0.5),
+    required: z.boolean().default(false),
   })
   .strict();
 export const Profile = z
@@ -113,6 +160,11 @@ export const Profile = z
         text: finite.min(0),
       })
       .strict(),
+    /** Explicit image-only weights. Legacy weights remain readable for old profiles. */
+    image_weights: z
+      .object({ pixel: finite.min(0), structure: finite.min(0) })
+      .strict()
+      .optional(),
     critical_threshold: Score,
     text_normalization: z.enum(['unicode_whitespace', 'exact']),
     masks: z.array(PixelRect).default([]),
@@ -125,6 +177,11 @@ export const Profile = z
   .superRefine((p, c) => {
     if (Math.abs(Object.values(p.weights).reduce((a, b) => a + b, 0) - 1) > 1e-9)
       c.addIssue({ code: 'custom', message: 'weights must sum to 1' });
+    if (
+      p.image_weights &&
+      Math.abs(Object.values(p.image_weights).reduce((a, b) => a + b, 0) - 1) > 1e-9
+    )
+      c.addIssue({ code: 'custom', message: 'image_weights must sum to 1' });
     if (p.status === 'validated' && !p.validation)
       c.addIssue({
         code: 'custom',
@@ -181,6 +238,7 @@ export const TaskInput = z
     annotation_input: AnnotationInput.optional(),
     annotation_evidence: AnnotationEvidence.optional(),
     required_checks: z.array(Check),
+    interaction_intents: z.array(InteractionIntent).default([]),
     pass_threshold: Score.default(90),
     threshold_operator: z.enum(['gte', 'gt']).default('gte'),
     budget: z
@@ -197,9 +255,15 @@ export const TaskInput = z
         required: z.boolean().default(false),
         probe_widths: z.array(z.number().int().positive()).max(5).default([]),
         max_horizontal_overflow_px: z.number().int().min(0).default(0),
+        allowed_scroll_containers: z.array(z.string().min(1)).max(20).default([]),
       })
       .strict()
-      .default({ required: false, probe_widths: [], max_horizontal_overflow_px: 0 }),
+      .default({
+        required: false,
+        probe_widths: [],
+        max_horizontal_overflow_px: 0,
+        allowed_scroll_containers: [],
+      }),
   })
   .strict()
   .superRefine((t, c) => {
@@ -235,6 +299,7 @@ export const TaskInput = z
 export type TaskConfig = z.infer<typeof TaskInput>;
 export type EvaluationProfile = z.infer<typeof Profile>;
 export type ReferenceRegion = z.infer<typeof Region>;
+export type InteractionIntent = z.infer<typeof InteractionIntent>;
 export type Bbox = z.infer<typeof Rect>;
 export const Issue = z
   .object({

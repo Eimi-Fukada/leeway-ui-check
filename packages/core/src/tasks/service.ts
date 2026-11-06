@@ -94,6 +94,35 @@ export class TaskService {
     return { ...row, config: TaskInput.parse(JSON.parse(row.config)) };
   }
   /**
+   * Bind interaction checks after the first code version exists. The contract is
+   * frozen before the submitted evaluation is queued and cannot be silently
+   * removed while an evaluation is active.
+   */
+  updateRequiredChecks(taskId: string, checks: TaskConfig['required_checks']) {
+    return this.store.transaction(() => {
+      const task = this.task(taskId);
+      if (task.config.required_checks.length && !checks.length)
+        throw Error('interaction_contract_cannot_be_removed');
+      const active = this.store.get(
+        "SELECT id FROM evaluations WHERE task_id=? AND state IN ('queued','capturing','comparing','testing')",
+        taskId,
+      );
+      if (active) throw Error('evaluation_conflict');
+      const config = TaskInput.parse({ ...task.config, required_checks: checks });
+      this.store.run('UPDATE tasks SET config=? WHERE id=?', JSON.stringify(config), taskId);
+      this.store.run('DELETE FROM regions WHERE task_id=?', taskId);
+      for (const region of config.regions)
+        this.store.run(
+          'INSERT INTO regions(id,task_id,json) VALUES(?,?,?)',
+          region.region_id,
+          taskId,
+          JSON.stringify(region),
+        );
+      this.store.event(taskId, 'requirements_updated', { required_checks: checks.length });
+      return config;
+    });
+  }
+  /**
    * 校验参考图、视口、区域和评分配置，保存参考证据并创建任务。
    * 只固定评测要求；不会访问目标 URL、启动目标项目或进行截图比较。
    */

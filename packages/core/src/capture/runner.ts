@@ -25,7 +25,7 @@ export type CaptureResult = {
   regions: DOMRegion[];
   runtime: string[];
   environment: { platform: string; node: string; chromium: string; fingerprint: string };
-  checks: { id: string; passed: boolean; error?: string }[];
+  checks: { id: string; passed: boolean; error?: string; observed?: Record<string, unknown> }[];
   stability_ratio: number;
   component_origin: { x: number; y: number };
   responsive?: {
@@ -254,14 +254,15 @@ export async function capture(
       const checkContext = await browser.newContext(contextOptions);
       try {
         const testPage = await prepare(checkContext, false);
-        await runCheck(testPage, check);
-        checks.push({ id: check.id, passed: true });
+        const observed = await runCheck(testPage, check);
+        checks.push({ id: check.id, passed: true, observed });
       } catch (error) {
         signal.throwIfAborted();
         checks.push({
           id: check.id,
           passed: false,
           error: error instanceof Error ? error.message : 'interaction_failed',
+          observed: error instanceof InteractionCheckError ? error.observed : undefined,
         });
       } finally {
         await checkContext.close();
@@ -293,7 +294,18 @@ export async function capture(
 /**
  * 依次执行声明的点击、输入、可见性、文字和输入值检查，选择器必须唯一匹配。
  */
+class InteractionCheckError extends Error {
+  constructor(
+    message: string,
+    readonly observed: Record<string, unknown>,
+  ) {
+    super(message);
+  }
+}
+
 async function runCheck(page: Page, check: TaskConfig['required_checks'][number]) {
+  const before = new Map<string, { x: number; y: number }>();
+  const observed: Record<string, unknown> = {};
   for (const step of check.steps) {
     const locator = page.locator(step.selector);
     if ((await locator.count()) !== 1) throw Error('ambiguous_or_missing_check_selector');
@@ -311,7 +323,69 @@ async function runCheck(page: Page, check: TaskConfig['required_checks'][number]
           (document.querySelector(selector) as HTMLInputElement)?.value === value,
         { selector: step.selector, value: step.value },
       );
+    if (step.action === 'scroll' || step.action === 'gesture') {
+      const state = await readScrollState(locator);
+      before.set(step.selector, state);
+      observed[`${step.selector}:before`] = state;
+      if (step.action === 'scroll') {
+        await locator.evaluate((el, input) => {
+          el.scrollBy(input.axis === 'x' ? input.delta : 0, input.axis === 'y' ? input.delta : 0);
+        }, step);
+      } else {
+        const box = await locator.boundingBox();
+        if (!box) throw Error('check_target_not_visible');
+        const cx = box.x + box.width / 2,
+          cy = box.y + box.height / 2,
+          sign = step.distance;
+        await page.mouse.move(cx, cy);
+        await page.mouse.down();
+        await page.mouse.move(
+          cx + (step.axis === 'x' ? -sign : 0),
+          cy + (step.axis === 'y' ? -sign : 0),
+          { steps: Math.max(1, Math.round(step.duration_ms / 16)) },
+        );
+        await page.mouse.up();
+      }
+    }
+    if (step.action === 'scroll_position') {
+      const previous = before.get(step.selector),
+        current = await readScrollState(locator);
+      observed[`${step.selector}:after`] = current;
+      const delta =
+        step.axis === 'x'
+          ? Math.abs(current.x - (previous?.x ?? 0))
+          : Math.abs(current.y - (previous?.y ?? 0));
+      observed[`${step.selector}:delta`] = delta;
+      if (delta < step.min_delta)
+        throw new InteractionCheckError('scroll_position_not_changed', {
+          ...observed,
+          selector: step.selector,
+          axis: step.axis,
+          min_delta: step.min_delta,
+        });
+    }
+    if (step.action === 'assert_visible') {
+      const visible = await locator.isVisible();
+      observed[`${step.selector}:visible`] = visible;
+      if (!visible)
+        throw new InteractionCheckError('target_not_visible', {
+          ...observed,
+          selector: step.selector,
+        });
+    }
   }
+  return observed;
+}
+
+async function readScrollState(locator: ReturnType<Page['locator']>) {
+  return locator.evaluate((el) => ({
+    x: (el as HTMLElement).scrollLeft,
+    y: (el as HTMLElement).scrollTop,
+    scrollWidth: (el as HTMLElement).scrollWidth,
+    clientWidth: (el as HTMLElement).clientWidth,
+    scrollHeight: (el as HTMLElement).scrollHeight,
+    clientHeight: (el as HTMLElement).clientHeight,
+  }));
 }
 /**
  * 只保留资源 URL 的来源和路径，避免将查询参数或片段中的敏感信息写入错误报告。

@@ -1,4 +1,8 @@
-# Reference annotation workflow
+# Optional reference annotation workflow
+
+Use this workflow only when semantic labels or a small set of text/component regions will help
+the repair. It is not required for a normal UI reconstruction: Harness can find visual differences
+and generate crops without Codex estimating every coordinate.
 
 Use Codex vision to propose annotations. No external model API or OCR service is called by Harness.
 Only annotate reference evidence; implementation DOM supplies selectors, never expected values.

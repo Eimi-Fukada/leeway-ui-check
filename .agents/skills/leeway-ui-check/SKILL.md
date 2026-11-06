@@ -5,14 +5,14 @@ description: Implement and iteratively repair UI against a reference screenshot 
 
 Use this workflow when the user requests Leeway UI reconstruction. Follow explicit user scope and cancellation.
 
-Before screenshot reconstruction, follow [reference annotation instructions](references/annotations.md).
-Use your vision to create candidate reference-only boxes/copy, execute `scripts/render_annotations.py`,
-actually inspect the overlay and crops, then bind implementation selectors. Supply `annotation_input`
-at start. Imported annotations are supplemental diagnostics; read `annotation_diagnostics`, verify candidates against the reference, and use local crops to guide repair. They do not raise main scores or block acceptance. Do not claim four-dimensional acceptance when annotations are absent. Unresolved references
-require review; do not change expected values to fit the implementation.
+Reference annotations are optional diagnostics, not a prerequisite for screenshot reconstruction.
+Use the Harness diff crops and DOM candidates as the default repair evidence. If semantic annotations
+would help, Codex may create them with [reference annotation instructions](references/annotations.md),
+but they do not raise the main score or block acceptance. Do not change the reference or acceptance
+rules to pass.
 Harness checkout for normalization/runtime tools: `<HARNESS_ROOT>` (in this source checkout, the repository root).
 
-1. Start the target project with your own project tools. Keep its HTTP/HTTPS URL accessible to the Harness. Call `ui_check_start` with the reference image path, viewport and `target_url`. Preserve the returned `run_id` and acceptance requirements.
+1. Start the target project with your own project tools. Keep its HTTP/HTTPS URL accessible to the Harness. Normalize the reference image first, then call `ui_check_start` with the reference image path, viewport and `target_url`. Preserve the returned `run_id` and requirements. Do not install a separate Playwright MCP; interaction checks run inside the Harness worker.
 2. Modify the target code and ensure the running URL reflects the update, then call `ui_check_submit` with a new `request_id` for each changed version. Reuse the same request ID only to retry the same submission.
 3. Use `task_status` and `next_action` to decide what happens next:
    - `evaluating`: poll `ui_check_status` with the same run/request IDs. Never queue duplicate work.

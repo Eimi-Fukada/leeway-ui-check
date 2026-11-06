@@ -4,6 +4,7 @@ import {
   AnnotationInput,
   Region,
   Check,
+  InteractionIntent,
   Report,
   TaskInput,
   defaultProfile,
@@ -14,12 +15,13 @@ import { TaskService } from '../tasks/service.js';
 /**
  * 发送给 MCP 客户端的工作流指引，说明何时查询、修复、重评及停止。
  */
-export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images, fix code and resubmit without asking the user to continue. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. For screenshot reconstruction, prepare reference-only annotations, render and inspect the overlay, then provide annotation_input at start. Content-only text omits geometry. Imported annotations are diagnostic only: read annotation_diagnostics and crops, verify against the reference before editing; they never raise the main score or block acceptance. Never change acceptance rules to pass.`;
+export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL and runs its own browser checks. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images and interaction/responsive observations, repair the UI and resubmit without asking the user to continue. Do not install or invoke a separate Playwright MCP: interaction checks run inside Harness. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. Optional interaction_intents are hypotheses until the implementation binds them to selectors in required_checks. Never change the reference or acceptance rules to pass.`;
 const ResponsiveInput = z
   .object({
     required: z.boolean().default(false),
     probe_widths: z.array(z.number().int().positive()).max(5).default([]),
     max_horizontal_overflow_px: z.number().int().min(0).default(0),
+    allowed_scroll_containers: z.array(z.string().min(1)).max(20).default([]),
   })
   .strict();
 /**
@@ -36,6 +38,7 @@ export const StartInput = z
     annotation_input: AnnotationInput.optional(),
     regions: z.array(Region).default([]),
     required_checks: z.array(Check).default([]),
+    interaction_intents: z.array(InteractionIntent).default([]),
     responsive: ResponsiveInput.optional(),
     profile_id: Id.optional(),
     pass_threshold: z.number().min(0).max(100).default(90),
@@ -105,6 +108,7 @@ export const toolDefinitions = {
       .object({
         run_id: Id,
         request_id: Id,
+        required_checks: z.array(Check).optional(),
         wait_ms: z.number().int().min(0).max(30000).default(10000),
       })
       .strict(),
@@ -163,12 +167,14 @@ export class UiWorkflow {
             ? {
                 ...defaultProfile,
                 profile_id: 'facade-annotated-diagnostic-v2',
+                image_weights: { pixel: 0.5, structure: 0.5 },
                 weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
               }
             : {
                 ...defaultProfile,
                 profile_id: 'facade-pixel-diagnostic-v1',
                 mode: 'pixel_diagnostic' as const,
+                image_weights: { pixel: 0.5, structure: 0.5 },
                 weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
               };
         const config = {
@@ -190,6 +196,7 @@ export class UiWorkflow {
           annotation_input: input.annotation_input,
           regions: input.regions,
           required_checks: input.required_checks,
+          interaction_intents: input.interaction_intents,
           pass_threshold: input.pass_threshold,
           threshold_operator: 'gte' as const,
           budget: { max_iterations: 8, max_wall_seconds: 1200 },
@@ -197,6 +204,7 @@ export class UiWorkflow {
             required: false,
             probe_widths: [],
             max_horizontal_overflow_px: 0,
+            allowed_scroll_containers: [],
           },
         };
         const created = await service.createTask(config);
@@ -209,6 +217,8 @@ export class UiWorkflow {
       case 'ui_check_submit': {
         // 提交只负责登记并短暂等待；常驻 worker 从队列执行截图和比较。
         const input = toolDefinitions.ui_check_submit.input.parse(raw);
+        if (input.required_checks)
+          service.updateRequiredChecks(input.run_id, input.required_checks);
         result = await service.submitAndWait(input.run_id, input.request_id, input.wait_ms);
         break;
       }

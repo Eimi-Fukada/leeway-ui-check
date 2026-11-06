@@ -127,6 +127,24 @@
           ],
           "additionalProperties": false
         },
+        "image_weights": {
+          "type": "object",
+          "properties": {
+            "pixel": {
+              "type": "number",
+              "minimum": 0
+            },
+            "structure": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "pixel",
+            "structure"
+          ],
+          "additionalProperties": false
+        },
         "critical_threshold": {
           "type": "number",
           "minimum": 0,

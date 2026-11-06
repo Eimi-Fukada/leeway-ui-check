@@ -224,12 +224,23 @@ export function scoreReport(
   const measured = entries.filter(
     ([key, value]) => value !== null && (key === 'pixel' || key === 'structure'),
   );
-  const totalWeight = measured.reduce((sum, [key]) => sum + p.weights[key], 0);
+  const imageWeights = p.image_weights ?? {
+    pixel: p.weights.pixel,
+    structure: p.weights.structure,
+  };
+  const totalWeight = measured.reduce(
+    (sum, [key]) => sum + imageWeights[key as 'pixel' | 'structure'],
+    0,
+  );
   const value = totalWeight
     ? 100 *
       clamp(
         1 -
-          measured.reduce((sum, [key, value]) => sum + (100 - value!) * p.weights[key], 0) /
+          measured.reduce(
+            (sum, [key, value]) =>
+              sum + (100 - value!) * imageWeights[key as 'pixel' | 'structure'],
+            0,
+          ) /
             (100 * totalWeight),
       )
     : measured.reduce((sum, [, value]) => sum + value!, 0) / measured.length;
@@ -257,7 +268,7 @@ export function scoreReport(
       issue_id: `check_${check.id}`,
       kind: 'interaction',
       severity: 'high',
-      observed: `交互检查 ${check.id} 失败`,
+      observed: `交互检查 ${check.id} 失败${check.error ? `：${check.error}` : ''}${check.observed ? `；观测值：${JSON.stringify(check.observed).slice(0, 500)}` : ''}`,
       suggestion: '检查该交互的元素状态和业务处理',
       suggestion_kind: 'hypothesis',
       evidence_artifact_ids: [],

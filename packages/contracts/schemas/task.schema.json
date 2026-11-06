@@ -259,6 +259,24 @@
               ],
               "additionalProperties": false
             },
+            "image_weights": {
+              "type": "object",
+              "properties": {
+                "pixel": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "structure": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "pixel",
+                "structure"
+              ],
+              "additionalProperties": false
+            },
             "critical_threshold": {
               "type": "number",
               "minimum": 0,
@@ -610,6 +628,122 @@
                         "value"
                       ],
                       "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "type": "string",
+                          "const": "scroll"
+                        },
+                        "selector": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "axis": {
+                          "type": "string",
+                          "enum": [
+                            "x",
+                            "y"
+                          ],
+                          "default": "x"
+                        },
+                        "delta": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "selector",
+                        "delta"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "type": "string",
+                          "const": "gesture"
+                        },
+                        "selector": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "axis": {
+                          "type": "string",
+                          "enum": [
+                            "x",
+                            "y"
+                          ],
+                          "default": "x"
+                        },
+                        "distance": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "duration_ms": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 5000,
+                          "default": 300
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "selector",
+                        "distance"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "type": "string",
+                          "const": "scroll_position"
+                        },
+                        "selector": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "axis": {
+                          "type": "string",
+                          "enum": [
+                            "x",
+                            "y"
+                          ],
+                          "default": "x"
+                        },
+                        "min_delta": {
+                          "type": "number",
+                          "minimum": 0,
+                          "default": 1
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "selector"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "type": "string",
+                          "const": "assert_visible"
+                        },
+                        "selector": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "selector"
+                      ],
+                      "additionalProperties": false
                     }
                   ]
                 },
@@ -622,6 +756,53 @@
             ],
             "additionalProperties": false
           }
+        },
+        "interaction_intents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "intent": {
+                "type": "string",
+                "enum": [
+                  "horizontal_scroll",
+                  "vertical_scroll",
+                  "open_panel",
+                  "close_panel",
+                  "tab_switch",
+                  "dropdown_open",
+                  "form_submit",
+                  "input_change",
+                  "toggle",
+                  "navigate"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.5
+              },
+              "required": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "id",
+              "intent"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
         },
         "pass_threshold": {
           "type": "number",
@@ -689,13 +870,23 @@
               "type": "integer",
               "minimum": 0,
               "default": 0
+            },
+            "allowed_scroll_containers": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "maxItems": 20,
+              "default": []
             }
           },
           "additionalProperties": false,
           "default": {
             "required": false,
             "probe_widths": [],
-            "max_horizontal_overflow_px": 0
+            "max_horizontal_overflow_px": 0,
+            "allowed_scroll_containers": []
           }
         }
       },
