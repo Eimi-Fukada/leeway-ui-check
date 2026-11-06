@@ -102,34 +102,13 @@ export const Check = z
       .min(1),
   })
   .strict();
-/** Agent hypotheses captured before implementation has stable DOM selectors. */
-export const InteractionIntent = z
-  .object({
-    id: Id,
-    intent: z.enum([
-      'horizontal_scroll',
-      'vertical_scroll',
-      'open_panel',
-      'close_panel',
-      'tab_switch',
-      'dropdown_open',
-      'form_submit',
-      'input_change',
-      'toggle',
-      'navigate',
-    ]),
-    description: z.string().max(500).optional(),
-    confidence: finite.min(0).max(1).default(0.5),
-    required: z.boolean().default(false),
-  })
-  .strict();
-export const InteractionCase = z
+/** Optional behavior checks authored by Codex after the implementation has selectors. */
+export const InteractionCheck = z
   .object({
     id: Id,
     selector: z.string().min(1),
     behavior: z.enum(['horizontal_scroll', 'vertical_scroll']),
     target_selector: z.string().min(1).optional(),
-    required: z.boolean().default(false),
     distance_px: finite.positive().default(240),
     min_delta_px: finite.nonnegative().default(40),
   })
@@ -229,8 +208,7 @@ export const TaskInput = z
     annotation_input: AnnotationInput.optional(),
     annotation_evidence: AnnotationEvidence.optional(),
     required_checks: z.array(Check),
-    interaction_intents: z.array(InteractionIntent).default([]),
-    interaction_cases: z.array(InteractionCase).default([]),
+    interaction_checks: z.array(InteractionCheck).default([]),
     pass_threshold: Score.default(90),
     threshold_operator: z.enum(['gte', 'gt']).default('gte'),
     budget: z
@@ -291,8 +269,7 @@ export const TaskInput = z
 export type TaskConfig = z.infer<typeof TaskInput>;
 export type EvaluationProfile = z.infer<typeof Profile>;
 export type ReferenceRegion = z.infer<typeof Region>;
-export type InteractionIntent = z.infer<typeof InteractionIntent>;
-export type InteractionCase = z.infer<typeof InteractionCase>;
+export type InteractionCheck = z.infer<typeof InteractionCheck>;
 export type Bbox = z.infer<typeof Rect>;
 export const Issue = z
   .object({

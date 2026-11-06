@@ -272,12 +272,11 @@ export function scoreReport(
     });
   }
   for (const interaction of (captured.interactions ?? []).filter((i) => !i.passed)) {
-    const required = config.interaction_cases.find((c) => c.id === interaction.id)?.required;
-    if (required) blockers.push(`interaction_failed:${interaction.id}`);
+    blockers.push(`interaction_failed:${interaction.id}`);
     issues.push({
       issue_id: `interaction_${interaction.id}`,
       kind: 'interaction',
-      severity: required ? 'high' : 'medium',
+      severity: 'high',
       observed: `交互 ${interaction.id} 失败${interaction.error ? `：${interaction.error}` : ''}；观测值：${JSON.stringify(interaction.observed ?? {}).slice(0, 500)}`,
       suggestion: '检查该交互目标的实现状态和动作后的可观察变化',
       suggestion_kind: 'hypothesis',

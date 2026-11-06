@@ -4,8 +4,7 @@ import {
   AnnotationInput,
   Region,
   Check,
-  InteractionIntent,
-  InteractionCase,
+  InteractionCheck,
   Report,
   TaskInput,
   defaultProfile,
@@ -16,7 +15,7 @@ import { TaskService } from '../tasks/service.js';
 /**
  * 发送给 MCP 客户端的工作流指引，说明何时查询、修复、重评及停止。
  */
-export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL and runs its own browser checks. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images and interaction/responsive observations, repair the UI and resubmit without asking the user to continue. Do not install or invoke a separate Playwright MCP: interaction checks run inside Harness. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. Optional interaction_intents are hypotheses until the implementation binds them to selectors in required_checks. Never change the reference or acceptance rules to pass.`;
+export const workflowInstructions = `Start/update the target project with your own tools; Harness only evaluates its URL and runs its own browser checks. Use ui_check_start once, then ui_check_submit each updated version with a new request_id; retries reuse the ID. If evaluating, poll ui_check_status. If needs_revision, read crop images and interaction/responsive observations, repair the UI and resubmit without asking the user to continue. Do not install or invoke a separate Playwright MCP: interaction checks run inside Harness. Interaction checks are optional: omit interaction_checks when the task is visual-only; when present, Harness validates the selectors and executes them. Finalize only passing captured evidence. Stop on cancellation, exhausted budget, stalled progress or configuration review. Never change the reference or acceptance rules to pass.`;
 const ResponsiveInput = z
   .object({
     required: z.boolean().default(false),
@@ -39,8 +38,6 @@ export const StartInput = z
     annotation_input: AnnotationInput.optional(),
     regions: z.array(Region).default([]),
     required_checks: z.array(Check).default([]),
-    interaction_intents: z.array(InteractionIntent).default([]),
-    interaction_cases: z.array(InteractionCase).default([]),
     responsive: ResponsiveInput.optional(),
     profile_id: Id.optional(),
     pass_threshold: z.number().min(0).max(100).default(90),
@@ -111,7 +108,7 @@ export const toolDefinitions = {
         run_id: Id,
         request_id: Id,
         required_checks: z.array(Check).optional(),
-        interaction_cases: z.array(InteractionCase).optional(),
+        interaction_checks: z.array(InteractionCheck).optional(),
         wait_ms: z.number().int().min(0).max(30000).default(10000),
       })
       .strict(),
@@ -197,8 +194,6 @@ export class UiWorkflow {
           annotation_input: input.annotation_input,
           regions: input.regions,
           required_checks: input.required_checks,
-          interaction_intents: input.interaction_intents,
-          interaction_cases: input.interaction_cases,
           pass_threshold: input.pass_threshold,
           threshold_operator: 'gte' as const,
           budget: { max_iterations: 8, max_wall_seconds: 1200 },
@@ -221,8 +216,8 @@ export class UiWorkflow {
         const input = toolDefinitions.ui_check_submit.input.parse(raw);
         if (input.required_checks)
           service.updateRequiredChecks(input.run_id, input.required_checks);
-        if (input.interaction_cases)
-          service.updateInteractionCases(input.run_id, input.interaction_cases);
+        if (input.interaction_checks)
+          service.updateInteractionChecks(input.run_id, input.interaction_checks);
         result = await service.submitAndWait(input.run_id, input.request_id, input.wait_ms);
         break;
       }

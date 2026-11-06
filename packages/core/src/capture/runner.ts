@@ -275,7 +275,7 @@ export async function capture(
       }
     }
     const interactions: CaptureResult['interactions'] = [];
-    for (const interaction of config.interaction_cases) {
+    for (const interaction of config.interaction_checks) {
       const interactionContext = await browser.newContext(contextOptions);
       try {
         const interactionPage = await prepare(interactionContext, false);
@@ -318,7 +318,7 @@ export async function capture(
   }
 }
 
-async function runInteraction(page: Page, interaction: TaskConfig['interaction_cases'][number]) {
+async function runInteraction(page: Page, interaction: TaskConfig['interaction_checks'][number]) {
   const locator = page.locator(interaction.selector);
   if ((await locator.count()) !== 1) throw Error('interaction_selector_missing_or_ambiguous');
   if (!(await locator.isVisible())) throw Error('interaction_selector_not_visible');

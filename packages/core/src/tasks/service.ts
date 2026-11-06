@@ -122,7 +122,7 @@ export class TaskService {
       return config;
     });
   }
-  updateInteractionCases(taskId: string, cases: TaskConfig['interaction_cases']) {
+  updateInteractionChecks(taskId: string, checks: TaskConfig['interaction_checks']) {
     return this.store.transaction(() => {
       const task = this.task(taskId);
       const active = this.store.get(
@@ -130,10 +130,10 @@ export class TaskService {
         taskId,
       );
       if (active) throw Error('evaluation_conflict');
-      const config = TaskInput.parse({ ...task.config, interaction_cases: cases });
+      const config = TaskInput.parse({ ...task.config, interaction_checks: checks });
       this.store.run('UPDATE tasks SET config=? WHERE id=?', JSON.stringify(config), taskId);
       this.store.event(taskId, 'interaction_contract_updated', {
-        interaction_cases: cases.length,
+        interaction_checks: checks.length,
       });
       return config;
     });

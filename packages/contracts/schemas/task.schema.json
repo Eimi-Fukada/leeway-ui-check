@@ -729,54 +729,7 @@
             "additionalProperties": false
           }
         },
-        "interaction_intents": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
-              },
-              "intent": {
-                "type": "string",
-                "enum": [
-                  "horizontal_scroll",
-                  "vertical_scroll",
-                  "open_panel",
-                  "close_panel",
-                  "tab_switch",
-                  "dropdown_open",
-                  "form_submit",
-                  "input_change",
-                  "toggle",
-                  "navigate"
-                ]
-              },
-              "description": {
-                "type": "string",
-                "maxLength": 500
-              },
-              "confidence": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 1,
-                "default": 0.5
-              },
-              "required": {
-                "type": "boolean",
-                "default": false
-              }
-            },
-            "required": [
-              "id",
-              "intent"
-            ],
-            "additionalProperties": false
-          },
-          "default": []
-        },
-        "interaction_cases": {
+        "interaction_checks": {
           "type": "array",
           "items": {
             "type": "object",
@@ -799,10 +752,6 @@
               "target_selector": {
                 "type": "string",
                 "minLength": 1
-              },
-              "required": {
-                "type": "boolean",
-                "default": false
               },
               "distance_px": {
                 "type": "number",
