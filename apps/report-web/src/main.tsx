@@ -28,9 +28,7 @@ function App() {
     [taskId, setTaskId] = useState(''),
     [task, setTask] = useState<Status | null>(null),
     [selected, setSelected] = useState(''),
-    [view, setView] = useState<
-      'reference' | 'actual' | 'diff' | 'strict_diff' | 'annotation_preview'
-    >('diff'),
+    [view, setView] = useState<'reference' | 'actual' | 'diff' | 'annotation_preview'>('diff'),
     [boxes, setBoxes] = useState(true),
     [error, setError] = useState('');
   useEffect(() => {
@@ -248,7 +246,6 @@ function App() {
                         'reference',
                         'actual',
                         'diff',
-                        'strict_diff',
                         ...(report?.artifacts.annotation_preview
                           ? ['annotation_preview' as const]
                           : []),
@@ -260,7 +257,7 @@ function App() {
                         className={key === view ? 'active' : ''}
                         onClick={() => setView(key)}
                       >
-                        {['参考图', '当前截图', '差异图', '严格差异', '标注预览'][i]}
+                        {['参考图', '当前截图', '差异图', '标注预览'][i]}
                       </button>
                     ))}
                   </div>
@@ -282,7 +279,6 @@ function App() {
                             reference: '参考图',
                             actual: '当前截图',
                             diff: '差异图',
-                            strict_diff: '严格差异图',
                             annotation_preview: '参考标注预览',
                           }[view]
                         }
