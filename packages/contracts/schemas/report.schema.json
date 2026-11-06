@@ -989,10 +989,6 @@
               "type": "string",
               "pattern": "^[a-zA-Z0-9_-]{1,100}$"
             },
-            "strict_diff": {
-              "type": "string",
-              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
-            },
             "dom": {
               "type": "string",
               "pattern": "^[a-zA-Z0-9_-]{1,100}$"
@@ -1035,10 +1031,6 @@
                 "evaluated_pixels": {
                   "type": "integer",
                   "exclusiveMinimum": 0
-                },
-                "strict_mismatched_pixels": {
-                  "type": "integer",
-                  "minimum": 0
                 },
                 "difference_ratio": {
                   "type": "number",

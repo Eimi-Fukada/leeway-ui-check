@@ -98,9 +98,7 @@ export function pixelCompare(
   if (binaryCount !== mismatched) throw Error('difference_mask_count_mismatch');
   return {
     diff,
-    strict: undefined as Buffer | undefined,
     mismatched_pixels: mismatched,
-    strict_mismatched_pixels: undefined as number | undefined,
     evaluated_pixels: evaluated,
     difference_ratio: mismatched / evaluated,
     mask_coverage: excluded / (width * height),

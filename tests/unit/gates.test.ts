@@ -94,10 +94,8 @@ function score(c: TaskConfig, ratio = 0) {
     {
       diff: Buffer.alloc(0),
       differences: new Uint8Array(),
-      strict: Buffer.alloc(0),
       mask: new Uint8Array(),
       mismatched_pixels: 0,
-      strict_mismatched_pixels: 0,
       evaluated_pixels: 10000,
       difference_ratio: ratio,
       mask_coverage: 0,
@@ -215,7 +213,6 @@ it('checks content-only text independently of CSS boxes and leaves layout unmeas
     profile: {
       ...defaultProfile,
       mode: 'pixel_diagnostic',
-      weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
     },
   });
   expect(images.assessment?.scope).toBe('image_only');

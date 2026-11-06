@@ -164,11 +164,6 @@ export const Profile = z
       })
       .strict(),
     image_weights: z.object({ pixel: finite.min(0), structure: finite.min(0) }).strict(),
-    /** Accepted only so old task payloads fail at migration rather than inside scoring. */
-    weights: z
-      .object({ pixel: finite, structure: finite, layout: finite, text: finite })
-      .strict()
-      .optional(),
     critical_threshold: Score,
     text_normalization: z.enum(['unicode_whitespace', 'exact']),
     masks: z.array(PixelRect).default([]),
@@ -394,7 +389,6 @@ export const Report = z
         reference: Id,
         actual: Id.optional(),
         diff: Id.optional(),
-        strict_diff: Id.optional(),
         dom: Id.optional(),
         report: Id.optional(),
         annotations: Id.optional(),
@@ -407,7 +401,6 @@ export const Report = z
       .object({
         mismatched_pixels: z.number().int().min(0),
         evaluated_pixels: z.number().int().positive(),
-        strict_mismatched_pixels: z.number().int().min(0).optional(),
         difference_ratio: finite.min(0).max(1),
         ssim: finite.min(-1).max(1),
         mask_coverage: finite.min(0).max(1),

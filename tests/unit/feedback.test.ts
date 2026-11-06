@@ -111,7 +111,6 @@ it('tracks split/merged regions on equal-area unions and rejects incompatible hi
     profile: {
       ...defaultProfile,
       mode: 'pixel_diagnostic',
-      weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
     },
   });
   const make = async (rectangles: { left: number; top: number; width: number; height: number }[]) =>
@@ -165,7 +164,7 @@ it('tracks split/merged regions on equal-area unions and rejects incompatible hi
         artifacts: { reference: 'ref' },
         metrics: {
           mismatched_pixels: pixels.mismatched_pixels,
-          strict_mismatched_pixels: pixels.strict_mismatched_pixels,
+
           evaluated_pixels: pixels.evaluated_pixels,
           difference_ratio: pixels.difference_ratio,
           ssim: 1,

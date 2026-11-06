@@ -25,7 +25,7 @@ describe('comparison contracts', () => {
   it('requires calibrated evidence and rejects unknown fields, NaN and invalid tolerance', () => {
     expect(() => Profile.parse({ ...defaultProfile, status: 'validated' })).toThrow();
     expect(() =>
-      Profile.parse({ ...defaultProfile, weights: { ...defaultProfile.weights, pixel: NaN } }),
+      Profile.parse({ ...defaultProfile, image_weights: { pixel: NaN, structure: 1 } }),
     ).toThrow();
     expect(() => Profile.parse({ ...defaultProfile, extra: true })).toThrow();
   });

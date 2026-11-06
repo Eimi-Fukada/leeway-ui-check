@@ -29,7 +29,6 @@ it('returns unannotated visual evidence, crop PNG resources and previous-round r
       ...config.profile,
       profile_id: 'feedback-diagnostic',
       mode: 'pixel_diagnostic',
-      weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
     };
     const task = await service.createTask(config);
     await writeFile(path.join(root, 'target/index.html'), fixtureHtml('shift'));

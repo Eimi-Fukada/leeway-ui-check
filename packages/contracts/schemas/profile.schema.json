@@ -117,30 +117,6 @@
           ],
           "additionalProperties": false
         },
-        "weights": {
-          "type": "object",
-          "properties": {
-            "pixel": {
-              "type": "number"
-            },
-            "structure": {
-              "type": "number"
-            },
-            "layout": {
-              "type": "number"
-            },
-            "text": {
-              "type": "number"
-            }
-          },
-          "required": [
-            "pixel",
-            "structure",
-            "layout",
-            "text"
-          ],
-          "additionalProperties": false
-        },
         "critical_threshold": {
           "type": "number",
           "minimum": 0,
