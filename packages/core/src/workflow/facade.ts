@@ -5,6 +5,7 @@ import {
   Region,
   Check,
   InteractionIntent,
+  InteractionCase,
   Report,
   TaskInput,
   defaultProfile,
@@ -39,6 +40,7 @@ export const StartInput = z
     regions: z.array(Region).default([]),
     required_checks: z.array(Check).default([]),
     interaction_intents: z.array(InteractionIntent).default([]),
+    interaction_cases: z.array(InteractionCase).default([]),
     responsive: ResponsiveInput.optional(),
     profile_id: Id.optional(),
     pass_threshold: z.number().min(0).max(100).default(90),
@@ -109,6 +111,7 @@ export const toolDefinitions = {
         run_id: Id,
         request_id: Id,
         required_checks: z.array(Check).optional(),
+        interaction_cases: z.array(InteractionCase).optional(),
         wait_ms: z.number().int().min(0).max(30000).default(10000),
       })
       .strict(),
@@ -168,14 +171,12 @@ export class UiWorkflow {
                 ...defaultProfile,
                 profile_id: 'facade-annotated-diagnostic-v2',
                 image_weights: { pixel: 0.5, structure: 0.5 },
-                weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
               }
             : {
                 ...defaultProfile,
                 profile_id: 'facade-pixel-diagnostic-v1',
                 mode: 'pixel_diagnostic' as const,
                 image_weights: { pixel: 0.5, structure: 0.5 },
-                weights: { pixel: 0.65, structure: 0.35, layout: 0, text: 0 },
               };
         const config = {
           schema_version: '1.0' as const,
@@ -197,6 +198,7 @@ export class UiWorkflow {
           regions: input.regions,
           required_checks: input.required_checks,
           interaction_intents: input.interaction_intents,
+          interaction_cases: input.interaction_cases,
           pass_threshold: input.pass_threshold,
           threshold_operator: 'gte' as const,
           budget: { max_iterations: 8, max_wall_seconds: 1200 },
@@ -219,6 +221,8 @@ export class UiWorkflow {
         const input = toolDefinitions.ui_check_submit.input.parse(raw);
         if (input.required_checks)
           service.updateRequiredChecks(input.run_id, input.required_checks);
+        if (input.interaction_cases)
+          service.updateInteractionCases(input.run_id, input.interaction_cases);
         result = await service.submitAndWait(input.run_id, input.request_id, input.wait_ms);
         break;
       }

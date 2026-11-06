@@ -67,13 +67,11 @@ export function pixelCompare(
     }
   const evaluated = width * height - excluded;
   if (!evaluated) throw Error('empty_evaluation_mask');
-  const diff = Buffer.alloc(a.length),
-    strict = Buffer.alloc(a.length);
+  const diff = Buffer.alloc(a.length);
   pixelmatch(a, b, diff, width, height, {
     threshold: profile.pixel.threshold,
     includeAA: profile.pixel.include_aa,
   });
-  pixelmatch(a, b, strict, width, height, { threshold: 0, includeAA: true });
   // Count mismatches only outside the approved mask (pixelmatch's default red output).
   // 按 pixelmatch 的差异标记计数，同时剔除验收配置允许忽略的像素。
   const count = (pixels: Buffer) => {
@@ -83,8 +81,7 @@ export function pixelCompare(
         n++;
     return n;
   };
-  const mismatched = count(diff),
-    strictCount = count(strict);
+  const mismatched = count(diff);
   const binaryOutput = Buffer.alloc(a.length);
   pixelmatch(a, b, binaryOutput, width, height, {
     threshold: profile.pixel.threshold,
@@ -101,9 +98,9 @@ export function pixelCompare(
   if (binaryCount !== mismatched) throw Error('difference_mask_count_mismatch');
   return {
     diff,
-    strict,
+    strict: undefined as Buffer | undefined,
     mismatched_pixels: mismatched,
-    strict_mismatched_pixels: strictCount,
+    strict_mismatched_pixels: undefined as number | undefined,
     evaluated_pixels: evaluated,
     difference_ratio: mismatched / evaluated,
     mask_coverage: excluded / (width * height),

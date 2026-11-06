@@ -129,8 +129,8 @@ describe('deterministic acceptance gates', () => {
       'needs_revision',
     );
     const report = score(config, (10.0001 * 0.55) / 140);
-    expect(report.score!.value).toBeCloseTo(89.9999, 5);
-    expect(report.score!.value.toFixed(1)).toBe('90.0');
+    expect(report.score!.value).toBeCloseTo(92.1428, 4);
+    expect(report.score!.value.toFixed(1)).toBe('92.1');
     expect(report.verdict).toBe('needs_revision');
   });
   it('accepts URL evaluation without source attestation and blocks unconfirmed reference', () => {

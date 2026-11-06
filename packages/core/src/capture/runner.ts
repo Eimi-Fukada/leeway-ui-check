@@ -26,6 +26,12 @@ export type CaptureResult = {
   runtime: string[];
   environment: { platform: string; node: string; chromium: string; fingerprint: string };
   checks: { id: string; passed: boolean; error?: string; observed?: Record<string, unknown> }[];
+  interactions?: {
+    id: string;
+    passed: boolean;
+    error?: string;
+    observed?: Record<string, unknown>;
+  }[];
   stability_ratio: number;
   component_origin: { x: number; y: number };
   responsive?: {
@@ -268,6 +274,25 @@ export async function capture(
         await checkContext.close();
       }
     }
+    const interactions: CaptureResult['interactions'] = [];
+    for (const interaction of config.interaction_cases) {
+      const interactionContext = await browser.newContext(contextOptions);
+      try {
+        const interactionPage = await prepare(interactionContext, false);
+        const observed = await runInteraction(interactionPage, interaction);
+        interactions.push({ id: interaction.id, passed: true, observed });
+      } catch (error) {
+        signal.throwIfAborted();
+        interactions.push({
+          id: interaction.id,
+          passed: false,
+          error: error instanceof InteractionCheckError ? error.message : 'interaction_failed',
+          observed: error instanceof InteractionCheckError ? error.observed : undefined,
+        });
+      } finally {
+        await interactionContext.close();
+      }
+    }
     const environment = {
       platform: `${process.platform}-${process.arch}`,
       node: process.version,
@@ -281,6 +306,7 @@ export async function capture(
       runtime: [...new Set(runtime)],
       environment,
       checks,
+      interactions,
       stability_ratio: ratio,
       component_origin: origin,
       dom_evidence: domEvidence,
@@ -290,6 +316,36 @@ export async function capture(
     signal.removeEventListener('abort', stop);
     await browser.close();
   }
+}
+
+async function runInteraction(page: Page, interaction: TaskConfig['interaction_cases'][number]) {
+  const locator = page.locator(interaction.selector);
+  if ((await locator.count()) !== 1) throw Error('interaction_selector_missing_or_ambiguous');
+  if (!(await locator.isVisible())) throw Error('interaction_selector_not_visible');
+  const before = await readScrollState(locator);
+  if (interaction.behavior === 'horizontal_scroll') {
+    await locator.evaluate((el, distance) => el.scrollBy(distance, 0), interaction.distance_px);
+  } else {
+    await locator.evaluate((el, distance) => el.scrollBy(0, distance), interaction.distance_px);
+  }
+  await page.waitForTimeout(50);
+  const after = await readScrollState(locator);
+  const delta =
+    interaction.behavior === 'horizontal_scroll'
+      ? Math.abs(after.x - before.x)
+      : Math.abs(after.y - before.y);
+  const targetVisible = interaction.target_selector
+    ? await page
+        .locator(interaction.target_selector)
+        .isVisible()
+        .catch(() => false)
+    : undefined;
+  const observed = { before, after, delta, target_visible: targetVisible };
+  if (delta < interaction.min_delta_px)
+    throw new InteractionCheckError('interaction_state_did_not_change', observed);
+  if (interaction.target_selector && !targetVisible)
+    throw new InteractionCheckError('interaction_target_not_visible', observed);
+  return observed;
 }
 /**
  * 依次执行声明的点击、输入、可见性、文字和输入值检查，选择器必须唯一匹配。

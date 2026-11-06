@@ -122,6 +122,22 @@ export class TaskService {
       return config;
     });
   }
+  updateInteractionCases(taskId: string, cases: TaskConfig['interaction_cases']) {
+    return this.store.transaction(() => {
+      const task = this.task(taskId);
+      const active = this.store.get(
+        "SELECT id FROM evaluations WHERE task_id=? AND state IN ('queued','capturing','comparing','testing')",
+        taskId,
+      );
+      if (active) throw Error('evaluation_conflict');
+      const config = TaskInput.parse({ ...task.config, interaction_cases: cases });
+      this.store.run('UPDATE tasks SET config=? WHERE id=?', JSON.stringify(config), taskId);
+      this.store.event(taskId, 'interaction_contract_updated', {
+        interaction_cases: cases.length,
+      });
+      return config;
+    });
+  }
   /**
    * 校验参考图、视口、区域和评分配置，保存参考证据并创建任务。
    * 只固定评测要求；不会访问目标 URL、启动目标项目或进行截图比较。
@@ -885,8 +901,7 @@ export class TaskService {
       sharp(data, { raw: { width: refImage.width, height: refImage.height, channels: 4 } })
         .png()
         .toBuffer();
-    const diff = await this.artifact(await encode(pixels.diff), 'png'),
-      strictDiff = await this.artifact(await encode(pixels.strict), 'png');
+    const diff = await this.artifact(await encode(pixels.diff), 'png');
     // 汇总分数与阻断条件；随后关键区域像素检查也可阻止通过。
     const report = scoreReport(
       config,
@@ -898,7 +913,6 @@ export class TaskService {
           reference: task.reference_artifact,
           actual: actual.artifact_id,
           diff: diff.artifact_id,
-          strict_diff: strictDiff.artifact_id,
           dom: dom.artifact_id,
         },
         budget_remaining: this.remaining(task.id),

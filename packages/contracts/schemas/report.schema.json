@@ -1032,13 +1032,13 @@
                   "type": "integer",
                   "minimum": 0
                 },
-                "strict_mismatched_pixels": {
-                  "type": "integer",
-                  "minimum": 0
-                },
                 "evaluated_pixels": {
                   "type": "integer",
                   "exclusiveMinimum": 0
+                },
+                "strict_mismatched_pixels": {
+                  "type": "integer",
+                  "minimum": 0
                 },
                 "difference_ratio": {
                   "type": "number",
@@ -1058,7 +1058,6 @@
               },
               "required": [
                 "mismatched_pixels",
-                "strict_mismatched_pixels",
                 "evaluated_pixels",
                 "difference_ratio",
                 "ssim",

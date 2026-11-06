@@ -99,34 +99,6 @@
           ],
           "additionalProperties": false
         },
-        "weights": {
-          "type": "object",
-          "properties": {
-            "pixel": {
-              "type": "number",
-              "minimum": 0
-            },
-            "structure": {
-              "type": "number",
-              "minimum": 0
-            },
-            "layout": {
-              "type": "number",
-              "minimum": 0
-            },
-            "text": {
-              "type": "number",
-              "minimum": 0
-            }
-          },
-          "required": [
-            "pixel",
-            "structure",
-            "layout",
-            "text"
-          ],
-          "additionalProperties": false
-        },
         "image_weights": {
           "type": "object",
           "properties": {
@@ -142,6 +114,30 @@
           "required": [
             "pixel",
             "structure"
+          ],
+          "additionalProperties": false
+        },
+        "weights": {
+          "type": "object",
+          "properties": {
+            "pixel": {
+              "type": "number"
+            },
+            "structure": {
+              "type": "number"
+            },
+            "layout": {
+              "type": "number"
+            },
+            "text": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "pixel",
+            "structure",
+            "layout",
+            "text"
           ],
           "additionalProperties": false
         },
@@ -218,7 +214,7 @@
         "status",
         "pixel",
         "ssim",
-        "weights",
+        "image_weights",
         "critical_threshold",
         "text_normalization"
       ],

@@ -224,10 +224,7 @@ export function scoreReport(
   const measured = entries.filter(
     ([key, value]) => value !== null && (key === 'pixel' || key === 'structure'),
   );
-  const imageWeights = p.image_weights ?? {
-    pixel: p.weights.pixel,
-    structure: p.weights.structure,
-  };
+  const imageWeights = p.image_weights;
   const totalWeight = measured.reduce(
     (sum, [key]) => sum + imageWeights[key as 'pixel' | 'structure'],
     0,
@@ -274,6 +271,19 @@ export function scoreReport(
       evidence_artifact_ids: [],
     });
   }
+  for (const interaction of (captured.interactions ?? []).filter((i) => !i.passed)) {
+    const required = config.interaction_cases.find((c) => c.id === interaction.id)?.required;
+    if (required) blockers.push(`interaction_failed:${interaction.id}`);
+    issues.push({
+      issue_id: `interaction_${interaction.id}`,
+      kind: 'interaction',
+      severity: required ? 'high' : 'medium',
+      observed: `交互 ${interaction.id} 失败${interaction.error ? `：${interaction.error}` : ''}；观测值：${JSON.stringify(interaction.observed ?? {}).slice(0, 500)}`,
+      suggestion: '检查该交互目标的实现状态和动作后的可观察变化',
+      suggestion_kind: 'hypothesis',
+      evidence_artifact_ids: [],
+    });
+  }
   // Each measured dimension must meet its gate; strong visual scores cannot erase bad content/layout.
   for (const [key, component] of entries.filter(([, value]) => value !== null)) {
     const passed =
@@ -316,7 +326,6 @@ export function scoreReport(
     issues,
     metrics: {
       mismatched_pixels: pixels.mismatched_pixels,
-      strict_mismatched_pixels: pixels.strict_mismatched_pixels,
       evaluated_pixels: pixels.evaluated_pixels,
       difference_ratio: pixels.difference_ratio,
       ssim,

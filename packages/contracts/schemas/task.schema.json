@@ -231,34 +231,6 @@
               ],
               "additionalProperties": false
             },
-            "weights": {
-              "type": "object",
-              "properties": {
-                "pixel": {
-                  "type": "number",
-                  "minimum": 0
-                },
-                "structure": {
-                  "type": "number",
-                  "minimum": 0
-                },
-                "layout": {
-                  "type": "number",
-                  "minimum": 0
-                },
-                "text": {
-                  "type": "number",
-                  "minimum": 0
-                }
-              },
-              "required": [
-                "pixel",
-                "structure",
-                "layout",
-                "text"
-              ],
-              "additionalProperties": false
-            },
             "image_weights": {
               "type": "object",
               "properties": {
@@ -274,6 +246,30 @@
               "required": [
                 "pixel",
                 "structure"
+              ],
+              "additionalProperties": false
+            },
+            "weights": {
+              "type": "object",
+              "properties": {
+                "pixel": {
+                  "type": "number"
+                },
+                "structure": {
+                  "type": "number"
+                },
+                "layout": {
+                  "type": "number"
+                },
+                "text": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "pixel",
+                "structure",
+                "layout",
+                "text"
               ],
               "additionalProperties": false
             },
@@ -350,7 +346,7 @@
             "status",
             "pixel",
             "ssim",
-            "weights",
+            "image_weights",
             "critical_threshold",
             "text_normalization"
           ],
@@ -799,6 +795,54 @@
             "required": [
               "id",
               "intent"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "interaction_cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "selector": {
+                "type": "string",
+                "minLength": 1
+              },
+              "behavior": {
+                "type": "string",
+                "enum": [
+                  "horizontal_scroll",
+                  "vertical_scroll"
+                ]
+              },
+              "target_selector": {
+                "type": "string",
+                "minLength": 1
+              },
+              "required": {
+                "type": "boolean",
+                "default": false
+              },
+              "distance_px": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "default": 240
+              },
+              "min_delta_px": {
+                "type": "number",
+                "minimum": 0,
+                "default": 40
+              }
+            },
+            "required": [
+              "id",
+              "selector",
+              "behavior"
             ],
             "additionalProperties": false
           },

@@ -123,6 +123,17 @@ export const InteractionIntent = z
     required: z.boolean().default(false),
   })
   .strict();
+export const InteractionCase = z
+  .object({
+    id: Id,
+    selector: z.string().min(1),
+    behavior: z.enum(['horizontal_scroll', 'vertical_scroll']),
+    target_selector: z.string().min(1).optional(),
+    required: z.boolean().default(false),
+    distance_px: finite.positive().default(240),
+    min_delta_px: finite.nonnegative().default(40),
+  })
+  .strict();
 export const Profile = z
   .object({
     profile_id: Id,
@@ -152,17 +163,10 @@ export const Profile = z
         s_bad: finite.min(-1).max(0.99),
       })
       .strict(),
+    image_weights: z.object({ pixel: finite.min(0), structure: finite.min(0) }).strict(),
+    /** Accepted only so old task payloads fail at migration rather than inside scoring. */
     weights: z
-      .object({
-        pixel: finite.min(0),
-        structure: finite.min(0),
-        layout: finite.min(0),
-        text: finite.min(0),
-      })
-      .strict(),
-    /** Explicit image-only weights. Legacy weights remain readable for old profiles. */
-    image_weights: z
-      .object({ pixel: finite.min(0), structure: finite.min(0) })
+      .object({ pixel: finite, structure: finite, layout: finite, text: finite })
       .strict()
       .optional(),
     critical_threshold: Score,
@@ -175,22 +179,14 @@ export const Profile = z
   })
   .strict()
   .superRefine((p, c) => {
-    if (Math.abs(Object.values(p.weights).reduce((a, b) => a + b, 0) - 1) > 1e-9)
-      c.addIssue({ code: 'custom', message: 'weights must sum to 1' });
-    if (
-      p.image_weights &&
-      Math.abs(Object.values(p.image_weights).reduce((a, b) => a + b, 0) - 1) > 1e-9
-    )
+    if (Math.abs(Object.values(p.image_weights).reduce((a, b) => a + b, 0) - 1) > 1e-9)
       c.addIssue({ code: 'custom', message: 'image_weights must sum to 1' });
     if (p.status === 'validated' && !p.validation)
       c.addIssue({
         code: 'custom',
         message: 'validated profile requires independent calibration and heldout evidence',
       });
-    if (
-      p.mode === 'pixel_diagnostic' &&
-      (p.weights.layout !== 0 || p.weights.text !== 0 || p.status === 'validated')
-    )
+    if (p.mode === 'pixel_diagnostic' && p.status === 'validated')
       c.addIssue({
         code: 'custom',
         message: 'pixel_diagnostic is provisional with zero layout/text weights',
@@ -239,6 +235,7 @@ export const TaskInput = z
     annotation_evidence: AnnotationEvidence.optional(),
     required_checks: z.array(Check),
     interaction_intents: z.array(InteractionIntent).default([]),
+    interaction_cases: z.array(InteractionCase).default([]),
     pass_threshold: Score.default(90),
     threshold_operator: z.enum(['gte', 'gt']).default('gte'),
     budget: z
@@ -300,6 +297,7 @@ export type TaskConfig = z.infer<typeof TaskInput>;
 export type EvaluationProfile = z.infer<typeof Profile>;
 export type ReferenceRegion = z.infer<typeof Region>;
 export type InteractionIntent = z.infer<typeof InteractionIntent>;
+export type InteractionCase = z.infer<typeof InteractionCase>;
 export type Bbox = z.infer<typeof Rect>;
 export const Issue = z
   .object({
@@ -408,8 +406,8 @@ export const Report = z
     metrics: z
       .object({
         mismatched_pixels: z.number().int().min(0),
-        strict_mismatched_pixels: z.number().int().min(0),
         evaluated_pixels: z.number().int().positive(),
+        strict_mismatched_pixels: z.number().int().min(0).optional(),
         difference_ratio: finite.min(0).max(1),
         ssim: finite.min(-1).max(1),
         mask_coverage: finite.min(0).max(1),
@@ -457,7 +455,7 @@ export const defaultProfile: EvaluationProfile = Profile.parse({
   status: 'provisional',
   pixel: { threshold: 0.1, include_aa: false, d_bad: 0.25 },
   ssim: { window: 7, gaussian_weights: false, s_bad: 0.5 },
-  weights: { pixel: 0.35, structure: 0.2, layout: 0.3, text: 0.15 },
+  image_weights: { pixel: 0.5, structure: 0.5 },
   critical_threshold: 90,
   text_normalization: 'unicode_whitespace',
 });
